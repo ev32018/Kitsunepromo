@@ -6,12 +6,13 @@ Kitsune Promo is a professional audio visualization web application that creates
 ## Features
 - **Audio Upload**: Support for MP3, WAV, OGG, FLAC files up to 100MB
 - **15 Visualization Styles**: Frequency Bars, Waveform, Circular, Particles, Fluid Waves, 3D Spectrum, Radial Burst, Mountain Range, Spectrum Analyzer, Equalizer, Audio Bars, Perlin Fluid, Audio Blob, Kaleidoscope, Endless Maze
-- **Custom Image Effects**: 19 audio-reactive effects organized into categories:
+- **Custom Image Effects**: 23 audio-reactive effects organized into categories:
   - Transform: Pulse, Zoom Pulse, Rotation
   - Distortion: Wave Distortion, Glitch, Blur Pulse
   - Color: Color Shift, Chromatic Aberration, Scanlines
   - Overlay: Mirror (horizontal/vertical/both), Vignette
   - Creative: Circle Rotation (concentric circles rotating independently), Rain Mask (animated rain drops), Slice Shift (horizontal/vertical slices), Water Ripple, Pixel Sort, Tunnel Zoom, Shatter (image broken into pieces), Liquid Morph (fluid distortion)
+  - Segmented: Spiral Wedges (pie segments rotating), Wave Bands (horizontal strips waving), Grid Warp (grid cells shifting/rotating), Radial Zoom (radial segments zooming)
 - **8 Color Schemes**: Neon, Sunset, Ocean, Galaxy, Fire, Matrix, Pastel, Monochrome
 - **Custom Color Schemes**: Create custom color palettes with up to 8 colors
 - **AI Background Generation**: Generate custom backgrounds using OpenAI's image generation

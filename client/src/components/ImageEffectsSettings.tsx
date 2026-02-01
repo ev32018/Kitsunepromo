@@ -54,6 +54,19 @@ export interface ImageEffectSettings {
   shatterPieces: number;
   liquidMorph: boolean;
   liquidMorphIntensity: number;
+  // Segmented effects (like circle rotation)
+  spiralWedges: boolean;
+  spiralWedgesIntensity: number;
+  spiralWedgesCount: number;
+  waveBands: boolean;
+  waveBandsIntensity: number;
+  waveBandsCount: number;
+  gridWarp: boolean;
+  gridWarpIntensity: number;
+  gridWarpSize: number;
+  radialZoom: boolean;
+  radialZoomIntensity: number;
+  radialZoomSegments: number;
 }
 
 interface ImageEffectsSettingsProps {
@@ -110,6 +123,19 @@ export const defaultImageEffects: ImageEffectSettings = {
   shatterPieces: 12,
   liquidMorph: false,
   liquidMorphIntensity: 0.4,
+  // Segmented effects defaults
+  spiralWedges: false,
+  spiralWedgesIntensity: 0.5,
+  spiralWedgesCount: 8,
+  waveBands: false,
+  waveBandsIntensity: 0.5,
+  waveBandsCount: 6,
+  gridWarp: false,
+  gridWarpIntensity: 0.5,
+  gridWarpSize: 4,
+  radialZoom: false,
+  radialZoomIntensity: 0.5,
+  radialZoomSegments: 6,
 };
 
 export function ImageEffectsSettings({
@@ -521,6 +547,162 @@ export function ImageEffectsSettings({
                       max={10}
                       step={1}
                       data-testid="slider-circle-rotation-count"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Spiral Wedges</Label>
+                  <Switch
+                    checked={effects.spiralWedges}
+                    onCheckedChange={(v) => updateEffect("spiralWedges", v)}
+                    data-testid="switch-spiral-wedges"
+                  />
+                </div>
+                {effects.spiralWedges && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.spiralWedgesIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.spiralWedgesIntensity]}
+                      onValueChange={([v]) => updateEffect("spiralWedgesIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-spiral-wedges-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Wedges</span>
+                      <span>{effects.spiralWedgesCount}</span>
+                    </div>
+                    <Slider
+                      value={[effects.spiralWedgesCount]}
+                      onValueChange={([v]) => updateEffect("spiralWedgesCount", v)}
+                      min={4}
+                      max={16}
+                      step={1}
+                      data-testid="slider-spiral-wedges-count"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Wave Bands</Label>
+                  <Switch
+                    checked={effects.waveBands}
+                    onCheckedChange={(v) => updateEffect("waveBands", v)}
+                    data-testid="switch-wave-bands"
+                  />
+                </div>
+                {effects.waveBands && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.waveBandsIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.waveBandsIntensity]}
+                      onValueChange={([v]) => updateEffect("waveBandsIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-wave-bands-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Bands</span>
+                      <span>{effects.waveBandsCount}</span>
+                    </div>
+                    <Slider
+                      value={[effects.waveBandsCount]}
+                      onValueChange={([v]) => updateEffect("waveBandsCount", v)}
+                      min={3}
+                      max={12}
+                      step={1}
+                      data-testid="slider-wave-bands-count"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Grid Warp</Label>
+                  <Switch
+                    checked={effects.gridWarp}
+                    onCheckedChange={(v) => updateEffect("gridWarp", v)}
+                    data-testid="switch-grid-warp"
+                  />
+                </div>
+                {effects.gridWarp && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.gridWarpIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.gridWarpIntensity]}
+                      onValueChange={([v]) => updateEffect("gridWarpIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-grid-warp-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Grid Size</span>
+                      <span>{effects.gridWarpSize}x{effects.gridWarpSize}</span>
+                    </div>
+                    <Slider
+                      value={[effects.gridWarpSize]}
+                      onValueChange={([v]) => updateEffect("gridWarpSize", v)}
+                      min={2}
+                      max={8}
+                      step={1}
+                      data-testid="slider-grid-warp-size"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Radial Zoom</Label>
+                  <Switch
+                    checked={effects.radialZoom}
+                    onCheckedChange={(v) => updateEffect("radialZoom", v)}
+                    data-testid="switch-radial-zoom"
+                  />
+                </div>
+                {effects.radialZoom && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.radialZoomIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.radialZoomIntensity]}
+                      onValueChange={([v]) => updateEffect("radialZoomIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-radial-zoom-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Segments</span>
+                      <span>{effects.radialZoomSegments}</span>
+                    </div>
+                    <Slider
+                      value={[effects.radialZoomSegments]}
+                      onValueChange={([v]) => updateEffect("radialZoomSegments", v)}
+                      min={4}
+                      max={12}
+                      step={1}
+                      data-testid="slider-radial-zoom-segments"
                     />
                   </div>
                 )}

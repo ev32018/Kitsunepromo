@@ -1158,6 +1158,19 @@ export interface ImageEffectSettings {
   shatterPieces: number;
   liquidMorph: boolean;
   liquidMorphIntensity: number;
+  // Segmented effects (like circle rotation)
+  spiralWedges: boolean;
+  spiralWedgesIntensity: number;
+  spiralWedgesCount: number;
+  waveBands: boolean;
+  waveBandsIntensity: number;
+  waveBandsCount: number;
+  gridWarp: boolean;
+  gridWarpIntensity: number;
+  gridWarpSize: number;
+  radialZoom: boolean;
+  radialZoomIntensity: number;
+  radialZoomSegments: number;
 }
 
 let imageRotation = 0;
@@ -1446,6 +1459,235 @@ export function applyImageEffects(
     } catch (e) {
       // Ignore cross-origin errors
     }
+  }
+  
+  // Spiral Wedges Effect - pie/wedge segments rotating independently
+  if (effects.spiralWedges) {
+    try {
+      const wedgeCount = effects.spiralWedgesCount || 8;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      
+      const sourceData = ctx.getImageData(0, 0, width, height);
+      const srcPixels = sourceData.data;
+      const outputData = ctx.createImageData(width, height);
+      const outPixels = outputData.data;
+      
+      // Pre-calculate wedge angles
+      const wedgeAngles: number[] = [];
+      for (let wedge = 0; wedge < wedgeCount; wedge++) {
+        const direction = wedge % 2 === 0 ? 1 : -1;
+        const speedMultiplier = 0.15 + (wedge * 0.08);
+        const audioBoost = bassNorm * effects.spiralWedgesIntensity * 0.4;
+        wedgeAngles[wedge] = (time * speedMultiplier * direction * effects.spiralWedgesIntensity) + (audioBoost * direction);
+      }
+      
+      const wedgeAngle = (Math.PI * 2) / wedgeCount;
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const dx = x - centerX;
+          const dy = y - centerY;
+          
+          // Determine which wedge this pixel belongs to
+          let angle = Math.atan2(dy, dx);
+          if (angle < 0) angle += Math.PI * 2;
+          const wedgeIndex = Math.floor(angle / wedgeAngle) % wedgeCount;
+          const rotAngle = wedgeAngles[wedgeIndex];
+          
+          // Calculate source coordinates
+          const cosA = Math.cos(-rotAngle);
+          const sinA = Math.sin(-rotAngle);
+          const srcX = Math.round(centerX + dx * cosA - dy * sinA);
+          const srcY = Math.round(centerY + dx * sinA + dy * cosA);
+          
+          const dstIdx = (y * width + x) * 4;
+          
+          if (srcX >= 0 && srcX < width && srcY >= 0 && srcY < height) {
+            const srcIdx = (srcY * width + srcX) * 4;
+            outPixels[dstIdx] = srcPixels[srcIdx];
+            outPixels[dstIdx + 1] = srcPixels[srcIdx + 1];
+            outPixels[dstIdx + 2] = srcPixels[srcIdx + 2];
+            outPixels[dstIdx + 3] = srcPixels[srcIdx + 3];
+          } else {
+            outPixels[dstIdx] = 0;
+            outPixels[dstIdx + 1] = 0;
+            outPixels[dstIdx + 2] = 0;
+            outPixels[dstIdx + 3] = 255;
+          }
+        }
+      }
+      
+      ctx.putImageData(outputData, 0, 0);
+    } catch (e) {}
+  }
+  
+  // Wave Bands Effect - horizontal strips that wave independently
+  if (effects.waveBands) {
+    try {
+      const bandCount = effects.waveBandsCount || 6;
+      const bandHeight = height / bandCount;
+      
+      const sourceData = ctx.getImageData(0, 0, width, height);
+      const srcPixels = sourceData.data;
+      const outputData = ctx.createImageData(width, height);
+      const outPixels = outputData.data;
+      
+      for (let y = 0; y < height; y++) {
+        const bandIndex = Math.floor(y / bandHeight);
+        const direction = bandIndex % 2 === 0 ? 1 : -1;
+        const speed = 0.3 + (bandIndex * 0.1);
+        const waveOffset = Math.sin(time * speed * direction * effects.waveBandsIntensity) * 
+          (40 * effects.waveBandsIntensity) * 
+          (1 + bassNorm * 0.5);
+        
+        for (let x = 0; x < width; x++) {
+          const srcX = Math.round(x - waveOffset);
+          const dstIdx = (y * width + x) * 4;
+          
+          if (srcX >= 0 && srcX < width) {
+            const srcIdx = (y * width + srcX) * 4;
+            outPixels[dstIdx] = srcPixels[srcIdx];
+            outPixels[dstIdx + 1] = srcPixels[srcIdx + 1];
+            outPixels[dstIdx + 2] = srcPixels[srcIdx + 2];
+            outPixels[dstIdx + 3] = srcPixels[srcIdx + 3];
+          } else {
+            // Wrap around
+            const wrappedX = ((srcX % width) + width) % width;
+            const srcIdx = (y * width + wrappedX) * 4;
+            outPixels[dstIdx] = srcPixels[srcIdx];
+            outPixels[dstIdx + 1] = srcPixels[srcIdx + 1];
+            outPixels[dstIdx + 2] = srcPixels[srcIdx + 2];
+            outPixels[dstIdx + 3] = srcPixels[srcIdx + 3];
+          }
+        }
+      }
+      
+      ctx.putImageData(outputData, 0, 0);
+    } catch (e) {}
+  }
+  
+  // Grid Warp Effect - grid cells that shift/rotate independently
+  if (effects.gridWarp) {
+    try {
+      const gridSize = effects.gridWarpSize || 4;
+      const cellWidth = width / gridSize;
+      const cellHeight = height / gridSize;
+      
+      const sourceData = ctx.getImageData(0, 0, width, height);
+      const srcPixels = sourceData.data;
+      const outputData = ctx.createImageData(width, height);
+      const outPixels = outputData.data;
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const cellX = Math.floor(x / cellWidth);
+          const cellY = Math.floor(y / cellHeight);
+          const cellIndex = cellY * gridSize + cellX;
+          
+          // Each cell has its own movement
+          const cellSeed = Math.sin(cellIndex * 12.9898 + cellIndex * 78.233) * 43758.5453;
+          const direction = cellIndex % 2 === 0 ? 1 : -1;
+          const speed = 0.2 + (cellSeed % 0.3);
+          
+          // Cell center
+          const cellCenterX = (cellX + 0.5) * cellWidth;
+          const cellCenterY = (cellY + 0.5) * cellHeight;
+          
+          // Rotation and translation for this cell
+          const rotAngle = Math.sin(time * speed * direction) * effects.gridWarpIntensity * 0.3 * 
+            (1 + bassNorm * 0.5);
+          const shiftX = Math.sin(time * speed * 0.7) * effects.gridWarpIntensity * 15 * 
+            (1 + midNorm * 0.3);
+          const shiftY = Math.cos(time * speed * 0.7) * effects.gridWarpIntensity * 15 * 
+            (1 + midNorm * 0.3);
+          
+          const dx = x - cellCenterX;
+          const dy = y - cellCenterY;
+          const cosA = Math.cos(-rotAngle);
+          const sinA = Math.sin(-rotAngle);
+          
+          const srcX = Math.round(cellCenterX + dx * cosA - dy * sinA - shiftX);
+          const srcY = Math.round(cellCenterY + dx * sinA + dy * cosA - shiftY);
+          
+          const dstIdx = (y * width + x) * 4;
+          
+          if (srcX >= 0 && srcX < width && srcY >= 0 && srcY < height) {
+            const srcIdx = (srcY * width + srcX) * 4;
+            outPixels[dstIdx] = srcPixels[srcIdx];
+            outPixels[dstIdx + 1] = srcPixels[srcIdx + 1];
+            outPixels[dstIdx + 2] = srcPixels[srcIdx + 2];
+            outPixels[dstIdx + 3] = srcPixels[srcIdx + 3];
+          } else {
+            outPixels[dstIdx] = 0;
+            outPixels[dstIdx + 1] = 0;
+            outPixels[dstIdx + 2] = 0;
+            outPixels[dstIdx + 3] = 255;
+          }
+        }
+      }
+      
+      ctx.putImageData(outputData, 0, 0);
+    } catch (e) {}
+  }
+  
+  // Radial Zoom Effect - radial segments that zoom in/out at different rates
+  if (effects.radialZoom) {
+    try {
+      const segmentCount = effects.radialZoomSegments || 6;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      
+      const sourceData = ctx.getImageData(0, 0, width, height);
+      const srcPixels = sourceData.data;
+      const outputData = ctx.createImageData(width, height);
+      const outPixels = outputData.data;
+      
+      const segmentAngle = (Math.PI * 2) / segmentCount;
+      
+      // Pre-calculate zoom factors for each segment
+      const zoomFactors: number[] = [];
+      for (let seg = 0; seg < segmentCount; seg++) {
+        const phase = seg / segmentCount * Math.PI * 2;
+        const zoomWave = Math.sin(time * 0.5 + phase) * effects.radialZoomIntensity * 0.3;
+        const audioZoom = bassNorm * effects.radialZoomIntensity * 0.2;
+        zoomFactors[seg] = 1 + zoomWave + audioZoom;
+      }
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const dx = x - centerX;
+          const dy = y - centerY;
+          
+          // Determine which segment
+          let angle = Math.atan2(dy, dx);
+          if (angle < 0) angle += Math.PI * 2;
+          const segIndex = Math.floor(angle / segmentAngle) % segmentCount;
+          const zoom = zoomFactors[segIndex];
+          
+          // Apply zoom from center
+          const srcX = Math.round(centerX + dx / zoom);
+          const srcY = Math.round(centerY + dy / zoom);
+          
+          const dstIdx = (y * width + x) * 4;
+          
+          if (srcX >= 0 && srcX < width && srcY >= 0 && srcY < height) {
+            const srcIdx = (srcY * width + srcX) * 4;
+            outPixels[dstIdx] = srcPixels[srcIdx];
+            outPixels[dstIdx + 1] = srcPixels[srcIdx + 1];
+            outPixels[dstIdx + 2] = srcPixels[srcIdx + 2];
+            outPixels[dstIdx + 3] = srcPixels[srcIdx + 3];
+          } else {
+            outPixels[dstIdx] = 0;
+            outPixels[dstIdx + 1] = 0;
+            outPixels[dstIdx + 2] = 0;
+            outPixels[dstIdx + 3] = 255;
+          }
+        }
+      }
+      
+      ctx.putImageData(outputData, 0, 0);
+    } catch (e) {}
   }
   
   // Rain Mask Effect - realistic animated rain drops
