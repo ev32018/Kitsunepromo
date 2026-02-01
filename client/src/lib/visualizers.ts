@@ -1368,3 +1368,517 @@ export function clearParticles(): void {
 export function resetRotation(): void {
   rotation = 0;
 }
+
+// Overlay particle system
+interface OverlayParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  opacity: number;
+  hue: number;
+  life: number;
+}
+
+let overlayParticles: OverlayParticle[] = [];
+
+export interface ParticleOverlayConfig {
+  enabled: boolean;
+  type: 'sparkles' | 'bokeh' | 'confetti' | 'snow' | 'fireflies' | 'bubbles' | 'stars';
+  count: number;
+  size: number;
+  speed: number;
+  audioReactive: boolean;
+  color: string;
+}
+
+export function drawParticleOverlay(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  config: ParticleOverlayConfig
+): void {
+  if (!config.enabled) return;
+  
+  const { width, height } = canvas;
+  const { bassLevel, midLevel, trebleLevel } = audioData;
+  const audioIntensity = config.audioReactive ? (bassLevel + midLevel + trebleLevel) / (255 * 3) : 0.5;
+  
+  // Initialize particles if needed
+  while (overlayParticles.length < config.count) {
+    overlayParticles.push(createOverlayParticle(width, height, config));
+  }
+  while (overlayParticles.length > config.count) {
+    overlayParticles.pop();
+  }
+  
+  ctx.save();
+  
+  overlayParticles.forEach((p, i) => {
+    // Update particle
+    p.x += p.vx * config.speed * (1 + audioIntensity * 0.5);
+    p.y += p.vy * config.speed * (1 + audioIntensity * 0.5);
+    p.life -= 0.002;
+    
+    // Reset if out of bounds or dead
+    if (p.x < -50 || p.x > width + 50 || p.y < -50 || p.y > height + 50 || p.life <= 0) {
+      overlayParticles[i] = createOverlayParticle(width, height, config);
+      return;
+    }
+    
+    const size = p.size * config.size * 20 * (1 + audioIntensity * 0.3);
+    const opacity = p.opacity * p.life * (config.audioReactive ? (0.5 + audioIntensity * 0.5) : 1);
+    
+    ctx.globalAlpha = opacity;
+    
+    switch (config.type) {
+      case 'sparkles':
+        drawSparkle(ctx, p.x, p.y, size, config.color);
+        break;
+      case 'bokeh':
+        drawBokeh(ctx, p.x, p.y, size * 2, config.color, opacity);
+        break;
+      case 'confetti':
+        drawConfetti(ctx, p.x, p.y, size, p.hue);
+        break;
+      case 'snow':
+        drawSnow(ctx, p.x, p.y, size, config.color);
+        break;
+      case 'fireflies':
+        drawFirefly(ctx, p.x, p.y, size, audioIntensity);
+        break;
+      case 'bubbles':
+        drawBubble(ctx, p.x, p.y, size * 1.5, config.color);
+        break;
+      case 'stars':
+        drawStar(ctx, p.x, p.y, size, config.color);
+        break;
+    }
+  });
+  
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function createOverlayParticle(width: number, height: number, config: ParticleOverlayConfig): OverlayParticle {
+  const type = config.type;
+  let vx = 0, vy = 0;
+  
+  switch (type) {
+    case 'snow':
+      vx = (Math.random() - 0.5) * 0.5;
+      vy = 0.5 + Math.random() * 0.5;
+      break;
+    case 'bubbles':
+      vx = (Math.random() - 0.5) * 0.3;
+      vy = -(0.3 + Math.random() * 0.5);
+      break;
+    case 'confetti':
+      vx = (Math.random() - 0.5) * 2;
+      vy = 0.5 + Math.random();
+      break;
+    default:
+      vx = (Math.random() - 0.5) * 0.5;
+      vy = (Math.random() - 0.5) * 0.5;
+  }
+  
+  return {
+    x: Math.random() * width,
+    y: type === 'bubbles' ? height + 20 : (type === 'snow' || type === 'confetti') ? -20 : Math.random() * height,
+    vx,
+    vy,
+    size: 0.3 + Math.random() * 0.7,
+    opacity: 0.3 + Math.random() * 0.7,
+    hue: Math.random() * 360,
+    life: 0.5 + Math.random() * 0.5,
+  };
+}
+
+function drawSparkle(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI) / 2;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size);
+  }
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, size * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBokeh(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, opacity: number) {
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(0.5, color.replace(')', `, ${opacity * 0.5})`).replace('rgb', 'rgba'));
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawConfetti(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, hue: number) {
+  ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(hue);
+  ctx.fillRect(-size / 2, -size / 4, size, size / 2);
+  ctx.restore();
+}
+
+function drawSnow(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawFirefly(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, intensity: number) {
+  const glow = size * (1 + intensity * 2);
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, glow);
+  gradient.addColorStop(0, `rgba(255, 255, 150, ${0.8 + intensity * 0.2})`);
+  gradient.addColorStop(0.3, `rgba(255, 255, 100, ${0.4 + intensity * 0.3})`);
+  gradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, glow, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBubble(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x - size * 0.3, y - size * 0.3, size * 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.fill();
+}
+
+function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * Math.PI * 2) / 5 - Math.PI / 2;
+    const innerAngle = angle + Math.PI / 5;
+    if (i === 0) {
+      ctx.moveTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size);
+    } else {
+      ctx.lineTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size);
+    }
+    ctx.lineTo(x + Math.cos(innerAngle) * size * 0.4, y + Math.sin(innerAngle) * size * 0.4);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Progress bar rendering
+export interface ProgressBarConfig {
+  enabled: boolean;
+  style: 'line' | 'dots' | 'wave' | 'glow' | 'minimal';
+  position: 'bottom' | 'top' | 'center';
+  height: number;
+  color: string;
+  backgroundColor: string;
+  showTime: boolean;
+}
+
+export function drawProgressBar(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  currentTime: number,
+  duration: number,
+  audioData: AudioData,
+  config: ProgressBarConfig
+): void {
+  if (!config.enabled || duration <= 0) return;
+  
+  const { width, height } = canvas;
+  const progress = currentTime / duration;
+  const { bassLevel } = audioData;
+  const bassNorm = bassLevel / 255;
+  
+  let y: number;
+  switch (config.position) {
+    case 'top':
+      y = 20;
+      break;
+    case 'center':
+      y = height / 2;
+      break;
+    default:
+      y = height - 20;
+  }
+  
+  const barWidth = width - 40;
+  const barHeight = config.height;
+  const startX = 20;
+  
+  ctx.save();
+  
+  // Background
+  ctx.fillStyle = config.backgroundColor;
+  ctx.beginPath();
+  ctx.roundRect(startX, y - barHeight / 2, barWidth, barHeight, barHeight / 2);
+  ctx.fill();
+  
+  // Progress
+  const progressWidth = barWidth * progress;
+  
+  switch (config.style) {
+    case 'glow':
+      ctx.shadowColor = config.color;
+      ctx.shadowBlur = 10 + bassNorm * 10;
+      ctx.fillStyle = config.color;
+      ctx.beginPath();
+      ctx.roundRect(startX, y - barHeight / 2, progressWidth, barHeight, barHeight / 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      break;
+    case 'wave':
+      ctx.fillStyle = config.color;
+      ctx.beginPath();
+      ctx.moveTo(startX, y + barHeight / 2);
+      for (let x = 0; x < progressWidth; x += 2) {
+        const wave = Math.sin(x * 0.1 + Date.now() * 0.005) * bassNorm * 5;
+        ctx.lineTo(startX + x, y + wave);
+      }
+      ctx.lineTo(startX + progressWidth, y + barHeight / 2);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'dots':
+      const dotCount = 30;
+      const dotSpacing = barWidth / dotCount;
+      for (let i = 0; i < dotCount; i++) {
+        const dotX = startX + i * dotSpacing + dotSpacing / 2;
+        const isActive = i / dotCount <= progress;
+        ctx.fillStyle = isActive ? config.color : config.backgroundColor;
+        ctx.beginPath();
+        ctx.arc(dotX, y, barHeight / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case 'minimal':
+      ctx.fillStyle = config.color;
+      ctx.fillRect(startX, y - 1, progressWidth, 2);
+      break;
+    default:
+      ctx.fillStyle = config.color;
+      ctx.beginPath();
+      ctx.roundRect(startX, y - barHeight / 2, progressWidth, barHeight, barHeight / 2);
+      ctx.fill();
+  }
+  
+  // Time display
+  if (config.showTime) {
+    const formatTime = (t: number) => {
+      const mins = Math.floor(t / 60);
+      const secs = Math.floor(t % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '12px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(formatTime(currentTime), startX, y + barHeight / 2 + 16);
+    ctx.textAlign = 'right';
+    ctx.fillText(formatTime(duration), startX + barWidth, y + barHeight / 2 + 16);
+  }
+  
+  ctx.restore();
+}
+
+// Text overlay rendering
+export interface TextOverlayConfig {
+  text: string;
+  position: 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  strokeColor: string;
+  strokeWidth: number;
+  animation: 'none' | 'pulse' | 'bounce' | 'glow' | 'wave' | 'fade';
+  audioReactive: boolean;
+  opacity: number;
+}
+
+export function drawTextOverlay(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  config: TextOverlayConfig,
+  time: number
+): void {
+  if (!config.text) return;
+  
+  const { width, height } = canvas;
+  const { bassLevel, midLevel, trebleLevel } = audioData;
+  const avgLevel = (bassLevel + midLevel + trebleLevel) / (255 * 3);
+  
+  let x: number, y: number;
+  let textAlign: CanvasTextAlign = 'center';
+  let textBaseline: CanvasTextBaseline = 'middle';
+  
+  const padding = 40;
+  
+  switch (config.position) {
+    case 'top-left':
+      x = padding; y = padding;
+      textAlign = 'left'; textBaseline = 'top';
+      break;
+    case 'top-center':
+      x = width / 2; y = padding;
+      textAlign = 'center'; textBaseline = 'top';
+      break;
+    case 'top-right':
+      x = width - padding; y = padding;
+      textAlign = 'right'; textBaseline = 'top';
+      break;
+    case 'center-left':
+      x = padding; y = height / 2;
+      textAlign = 'left'; textBaseline = 'middle';
+      break;
+    case 'center':
+      x = width / 2; y = height / 2;
+      textAlign = 'center'; textBaseline = 'middle';
+      break;
+    case 'center-right':
+      x = width - padding; y = height / 2;
+      textAlign = 'right'; textBaseline = 'middle';
+      break;
+    case 'bottom-left':
+      x = padding; y = height - padding;
+      textAlign = 'left'; textBaseline = 'bottom';
+      break;
+    case 'bottom-center':
+      x = width / 2; y = height - padding;
+      textAlign = 'center'; textBaseline = 'bottom';
+      break;
+    case 'bottom-right':
+      x = width - padding; y = height - padding;
+      textAlign = 'right'; textBaseline = 'bottom';
+      break;
+    default:
+      x = width / 2; y = height - padding;
+      textAlign = 'center'; textBaseline = 'bottom';
+  }
+  
+  ctx.save();
+  
+  let fontSize = config.fontSize;
+  let offsetY = 0;
+  let opacity = config.opacity;
+  
+  // Apply animations
+  switch (config.animation) {
+    case 'pulse':
+      const pulseScale = config.audioReactive ? 1 + avgLevel * 0.2 : 1 + Math.sin(time * 3) * 0.1;
+      fontSize *= pulseScale;
+      break;
+    case 'bounce':
+      offsetY = Math.sin(time * 4) * 10 * (config.audioReactive ? avgLevel : 0.5);
+      break;
+    case 'glow':
+      ctx.shadowColor = config.color;
+      ctx.shadowBlur = 10 + (config.audioReactive ? avgLevel * 20 : Math.sin(time * 2) * 10);
+      break;
+    case 'wave':
+      offsetY = Math.sin(time * 2) * 5;
+      break;
+    case 'fade':
+      opacity *= 0.5 + Math.sin(time * 2) * 0.5;
+      break;
+  }
+  
+  ctx.globalAlpha = opacity;
+  ctx.font = `bold ${fontSize}px ${config.fontFamily}`;
+  ctx.textAlign = textAlign;
+  ctx.textBaseline = textBaseline;
+  
+  // Stroke
+  if (config.strokeWidth > 0) {
+    ctx.strokeStyle = config.strokeColor;
+    ctx.lineWidth = config.strokeWidth * 2;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(config.text, x, y + offsetY);
+  }
+  
+  // Fill
+  ctx.fillStyle = config.color;
+  ctx.fillText(config.text, x, y + offsetY);
+  
+  ctx.restore();
+}
+
+// Ken Burns effect state
+let kenBurnsOffset = { x: 0, y: 0, zoom: 1, direction: 0 };
+
+export interface KenBurnsConfig {
+  enabled: boolean;
+  direction: 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right' | 'pan-up' | 'pan-down' | 'random';
+  speed: number;
+  intensity: number;
+}
+
+export function getKenBurnsTransform(config: KenBurnsConfig, deltaTime: number): { x: number; y: number; scale: number } {
+  if (!config.enabled) {
+    return { x: 0, y: 0, scale: 1 };
+  }
+  
+  const speed = config.speed * 0.001;
+  const intensity = config.intensity;
+  
+  // Random direction change
+  if (config.direction === 'random' && Math.random() < 0.001) {
+    kenBurnsOffset.direction = Math.floor(Math.random() * 6);
+  }
+  
+  const dir = config.direction === 'random' ? kenBurnsOffset.direction : 
+    ['zoom-in', 'zoom-out', 'pan-left', 'pan-right', 'pan-up', 'pan-down'].indexOf(config.direction);
+  
+  switch (dir) {
+    case 0: // zoom-in
+      kenBurnsOffset.zoom = Math.min(1 + intensity, kenBurnsOffset.zoom + speed);
+      break;
+    case 1: // zoom-out
+      kenBurnsOffset.zoom = Math.max(1, kenBurnsOffset.zoom - speed);
+      if (kenBurnsOffset.zoom <= 1) kenBurnsOffset.zoom = 1 + intensity;
+      break;
+    case 2: // pan-left
+      kenBurnsOffset.x -= speed * intensity * 100;
+      if (kenBurnsOffset.x < -intensity * 50) kenBurnsOffset.x = intensity * 50;
+      break;
+    case 3: // pan-right
+      kenBurnsOffset.x += speed * intensity * 100;
+      if (kenBurnsOffset.x > intensity * 50) kenBurnsOffset.x = -intensity * 50;
+      break;
+    case 4: // pan-up
+      kenBurnsOffset.y -= speed * intensity * 100;
+      if (kenBurnsOffset.y < -intensity * 50) kenBurnsOffset.y = intensity * 50;
+      break;
+    case 5: // pan-down
+      kenBurnsOffset.y += speed * intensity * 100;
+      if (kenBurnsOffset.y > intensity * 50) kenBurnsOffset.y = -intensity * 50;
+      break;
+  }
+  
+  return {
+    x: kenBurnsOffset.x,
+    y: kenBurnsOffset.y,
+    scale: kenBurnsOffset.zoom
+  };
+}
+
+export function resetKenBurns(): void {
+  kenBurnsOffset = { x: 0, y: 0, zoom: 1, direction: 0 };
+}
+
+export function clearOverlayParticles(): void {
+  overlayParticles = [];
+}

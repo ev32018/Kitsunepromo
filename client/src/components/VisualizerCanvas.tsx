@@ -1,8 +1,25 @@
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { AudioAnalyzer } from "@/lib/audioAnalyzer";
-import { drawVisualization, clearParticles, resetRotation, applyImageEffects, resetImageRotation } from "@/lib/visualizers";
+import { 
+  drawVisualization, 
+  clearParticles, 
+  resetRotation, 
+  applyImageEffects, 
+  resetImageRotation,
+  drawParticleOverlay,
+  drawProgressBar,
+  drawTextOverlay,
+  getKenBurnsTransform,
+  resetKenBurns,
+  clearOverlayParticles,
+  type ParticleOverlayConfig,
+  type ProgressBarConfig,
+  type TextOverlayConfig,
+  type KenBurnsConfig,
+} from "@/lib/visualizers";
 import type { VisualizationType, ColorScheme } from "@shared/schema";
 import type { ImageEffectSettings } from "@/components/ImageEffectsSettings";
+import type { BlendMode } from "@/components/BlendModeSettings";
 
 interface VisualizerCanvasProps {
   audioElement: HTMLAudioElement | null;
@@ -21,6 +38,12 @@ interface VisualizerCanvasProps {
   overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
   customImage?: string | null;
   imageEffects?: ImageEffectSettings;
+  blendMode?: BlendMode;
+  blendOpacity?: number;
+  kenBurnsConfig?: KenBurnsConfig;
+  particleOverlayConfig?: ParticleOverlayConfig;
+  textOverlayConfig?: TextOverlayConfig;
+  progressBarConfig?: ProgressBarConfig;
 }
 
 export interface VisualizerCanvasHandle {
@@ -46,6 +69,12 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       overlayPosition = "bottom-right",
       customImage,
       imageEffects,
+      blendMode = "normal",
+      blendOpacity = 1,
+      kenBurnsConfig,
+      particleOverlayConfig,
+      textOverlayConfig,
+      progressBarConfig,
     },
     ref
   ) => {
@@ -54,6 +83,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
     const animationFrameRef = useRef<number>();
     const bgImageRef = useRef<HTMLImageElement | null>(null);
     const customImageRef = useRef<HTMLImageElement | null>(null);
+    const lastTimeRef = useRef<number>(Date.now());
 
     useImperativeHandle(ref, () => ({
       getCanvas: () => canvasRef.current,
@@ -173,6 +203,11 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
         return;
       }
 
+      const currentTime = Date.now();
+      const deltaTime = currentTime - lastTimeRef.current;
+      lastTimeRef.current = currentTime;
+      const time = currentTime * 0.001;
+
       const rect = canvas.getBoundingClientRect();
       if (canvas.width !== rect.width || canvas.height !== rect.height) {
         canvas.width = rect.width;
@@ -184,11 +219,26 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       const hasImageEffects = !!(customImageRef.current && imageEffects?.enabled);
       const shouldHideVisualization = hasImageEffects && imageEffects?.hideVisualization;
       
-      if (hasImageEffects) {
+      // Apply Ken Burns effect to custom image
+      if (hasImageEffects && kenBurnsConfig?.enabled) {
+        const transform = getKenBurnsTransform(kenBurnsConfig, deltaTime);
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(transform.scale, transform.scale);
+        ctx.translate(-canvas.width / 2 + transform.x, -canvas.height / 2 + transform.y);
+        applyImageEffects(ctx, canvas, audioData, customImageRef.current!, imageEffects);
+        ctx.restore();
+      } else if (hasImageEffects) {
         applyImageEffects(ctx, canvas, audioData, customImageRef.current!, imageEffects);
       }
 
       if (!shouldHideVisualization) {
+        // Apply blend mode for visualization overlay
+        if (hasImageEffects && blendMode !== "normal") {
+          ctx.globalCompositeOperation = blendMode as GlobalCompositeOperation;
+          ctx.globalAlpha = blendOpacity;
+        }
+
         drawVisualization(
           ctx,
           canvas,
@@ -209,8 +259,28 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
           customColors,
           hasImageEffects
         );
+
+        // Reset blend mode
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
       }
 
+      // Draw particle overlay
+      if (particleOverlayConfig?.enabled) {
+        drawParticleOverlay(ctx, canvas, audioData, particleOverlayConfig);
+      }
+
+      // Draw progress bar
+      if (progressBarConfig?.enabled && audioElement) {
+        drawProgressBar(ctx, canvas, audioElement.currentTime, audioElement.duration, audioData, progressBarConfig);
+      }
+
+      // Draw text overlay
+      if (textOverlayConfig?.text) {
+        drawTextOverlay(ctx, canvas, audioData, textOverlayConfig, time);
+      }
+
+      // Draw legacy overlay text (for backward compatibility)
       drawOverlay(ctx, canvas);
 
       animationFrameRef.current = requestAnimationFrame(draw);
@@ -226,6 +296,13 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       mirrorMode,
       drawOverlay,
       imageEffects,
+      blendMode,
+      blendOpacity,
+      kenBurnsConfig,
+      particleOverlayConfig,
+      textOverlayConfig,
+      progressBarConfig,
+      audioElement,
     ]);
 
     useEffect(() => {

@@ -5,18 +5,31 @@ AudioViz is a professional audio visualization web application that creates stun
 
 ## Features
 - **Audio Upload**: Support for MP3, WAV, OGG, FLAC files up to 100MB
-- **15 Visualization Styles**: Frequency Bars, Waveform, Circular, Particles, Fluid Waves, 3D Spectrum, Radial Burst, Mountain Range, Spectrum Analyzer, Equalizer, Audio Bars, Perlin Fluid, Audio Blob, Kaleidoscope, Endless Maze (hexagonal energy network)
-- **Custom Image Effects**: Upload images with audio-reactive effects (pulse, wave distortion, color shift, glitch, zoom)
+- **15 Visualization Styles**: Frequency Bars, Waveform, Circular, Particles, Fluid Waves, 3D Spectrum, Radial Burst, Mountain Range, Spectrum Analyzer, Equalizer, Audio Bars, Perlin Fluid, Audio Blob, Kaleidoscope, Endless Maze
+- **Custom Image Effects**: 11 audio-reactive effects organized into categories:
+  - Transform: Pulse, Zoom Pulse, Rotation
+  - Distortion: Wave Distortion, Glitch, Blur Pulse
+  - Color: Color Shift, Chromatic Aberration, Scanlines
+  - Overlay: Mirror (horizontal/vertical/both), Vignette
 - **8 Color Schemes**: Neon, Sunset, Ocean, Galaxy, Fire, Matrix, Pastel, Monochrome
 - **Custom Color Schemes**: Create custom color palettes with up to 8 colors
 - **AI Background Generation**: Generate custom backgrounds using OpenAI's image generation
-- **Video Export**: Export visualizations as WebM or MP4 videos in 720p, 1080p, or 1440p
+- **Social Media Aspect Ratios**: 16:9 (YouTube), 9:16 (TikTok/Reels), 1:1 (Instagram), 4:5 (Instagram Portrait) with letterbox color control
+- **Blend Modes**: 12 blend modes for visualization-image compositing (normal, multiply, screen, overlay, soft-light, hard-light, color-dodge, color-burn, difference, exclusion, lighten, darken)
+- **Ken Burns Effect**: Cinematic pan/zoom for static images with 7 direction modes (zoom-in, zoom-out, pan-left/right/up/down, random)
+- **Particle Overlays**: 7 audio-reactive particle types (sparkles, bokeh, confetti, snow, fireflies, bubbles, stars)
+- **Text Overlay**: Advanced text overlay with 6 animations (pulse, bounce, glow, wave, fade), 9 positions, font customization, and audio-reactive options
+- **Progress Bar**: 5 styles (line, dots, wave, glow, minimal) with customizable colors and position
+- **Video Export**: Export as WebM or MP4 in 720p, 1080p, or 1440p with:
+  - Frame rate options: 24, 30, 60 fps
+  - Fade-in/out effects
+  - Loop preview for playback testing
+  - Aspect-ratio-aware export with letterboxing
 - **Real-time Controls**: Sensitivity, bar count, particle count, glow intensity, rotation speed, mirror mode
 - **Fullscreen Mode**: Immersive fullscreen visualization viewing
 - **Keyboard Shortcuts**: Space (play/pause), arrows (seek), F (fullscreen), M (mute), ? (help)
 - **Waveform Preview**: Visual waveform display with seek-on-click in audio player
 - **BPM Detection**: Automatic tempo detection from audio files
-- **Overlay Text**: Add watermark/logo text with customizable position
 - **Presets**: Save and load visualization presets with shareable codes
 
 ## Tech Stack
@@ -41,7 +54,14 @@ client/
 │   │   ├── AIBackgroundGenerator.tsx
 │   │   ├── PresetManager.tsx
 │   │   ├── OverlaySettings.tsx
-│   │   └── CustomColorPicker.tsx
+│   │   ├── CustomColorPicker.tsx
+│   │   ├── ImageEffectsSettings.tsx
+│   │   ├── AspectRatioSettings.tsx
+│   │   ├── BlendModeSettings.tsx
+│   │   ├── KenBurnsSettings.tsx
+│   │   ├── ParticleOverlaySettings.tsx
+│   │   ├── TextOverlaySettings.tsx
+│   │   └── ProgressBarSettings.tsx
 │   ├── lib/           # Utility libraries
 │   │   ├── audioAnalyzer.ts    # Web Audio API wrapper
 │   │   ├── visualizers.ts      # Canvas visualization renderers

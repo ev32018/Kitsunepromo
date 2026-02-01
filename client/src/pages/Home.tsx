@@ -8,9 +8,14 @@ import { VisualizationControls } from "@/components/VisualizationControls";
 import { ExportControls } from "@/components/ExportControls";
 import { AIBackgroundGenerator } from "@/components/AIBackgroundGenerator";
 import { PresetManager } from "@/components/PresetManager";
-import { OverlaySettings } from "@/components/OverlaySettings";
 import { CustomColorPicker } from "@/components/CustomColorPicker";
 import { ImageEffectsSettings, defaultImageEffects, type ImageEffectSettings } from "@/components/ImageEffectsSettings";
+import { AspectRatioSettings, defaultAspectRatioConfig, type AspectRatioConfig } from "@/components/AspectRatioSettings";
+import { BlendModeSettings, defaultBlendModeConfig, type BlendModeConfig } from "@/components/BlendModeSettings";
+import { KenBurnsSettings, defaultKenBurnsConfig, type KenBurnsConfig } from "@/components/KenBurnsSettings";
+import { ParticleOverlaySettings, defaultParticleOverlayConfig, type ParticleOverlayConfig } from "@/components/ParticleOverlaySettings";
+import { TextOverlaySettings, defaultTextOverlayConfig, type TextOverlayConfig } from "@/components/TextOverlaySettings";
+import { ProgressBarSettings, defaultProgressBarConfig, type ProgressBarConfig } from "@/components/ProgressBarSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -37,12 +42,16 @@ export default function Home() {
   const [rotationSpeed, setRotationSpeed] = useState(0.5);
   const [mirrorMode, setMirrorMode] = useState(false);
   const [aiBackground, setAiBackground] = useState<string | null>(null);
-  const [overlayText, setOverlayText] = useState("");
-  const [overlayPosition, setOverlayPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right" | "center">("bottom-right");
   const [bpm, setBpm] = useState<number | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [imageEffects, setImageEffects] = useState<ImageEffectSettings>(defaultImageEffects);
+  const [aspectRatioConfig, setAspectRatioConfig] = useState<AspectRatioConfig>(defaultAspectRatioConfig);
+  const [blendModeConfig, setBlendModeConfig] = useState<BlendModeConfig>(defaultBlendModeConfig);
+  const [kenBurnsConfig, setKenBurnsConfig] = useState<KenBurnsConfig>(defaultKenBurnsConfig);
+  const [particleOverlayConfig, setParticleOverlayConfig] = useState<ParticleOverlayConfig>(defaultParticleOverlayConfig);
+  const [textOverlayConfig, setTextOverlayConfig] = useState<TextOverlayConfig>(defaultTextOverlayConfig);
+  const [progressBarConfig, setProgressBarConfig] = useState<ProgressBarConfig>(defaultProgressBarConfig);
 
   const visualizerRef = useRef<VisualizerCanvasHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -176,8 +185,13 @@ export default function Home() {
     setGlowIntensity(preset.settings.glowIntensity);
     setRotationSpeed(preset.settings.rotationSpeed);
     setMirrorMode(preset.settings.mirrorMode);
-    if (preset.overlayText) setOverlayText(preset.overlayText);
-    if (preset.overlayPosition) setOverlayPosition(preset.overlayPosition);
+    if (preset.overlayText || preset.overlayPosition) {
+      setTextOverlayConfig(prev => ({
+        ...prev,
+        text: preset.overlayText || prev.text,
+        position: preset.overlayPosition || prev.position,
+      }));
+    }
     toast({ title: "Preset loaded", description: "Visualization settings applied." });
   }, [toast]);
 
@@ -259,8 +273,8 @@ export default function Home() {
                   colorScheme,
                   customColors: customColors.length > 0 ? customColors : undefined,
                   settings: getCurrentSettings(),
-                  overlayText: overlayText || undefined,
-                  overlayPosition,
+                  overlayText: textOverlayConfig.text || undefined,
+                  overlayPosition: textOverlayConfig.position,
                 }}
                 onLoadPreset={loadPreset}
               />
@@ -304,11 +318,23 @@ export default function Home() {
 
               <Separator className="bg-border/50" />
 
-              <OverlaySettings
-                text={overlayText}
-                onTextChange={setOverlayText}
-                position={overlayPosition}
-                onPositionChange={setOverlayPosition}
+              <AspectRatioSettings
+                config={aspectRatioConfig}
+                onConfigChange={setAspectRatioConfig}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <TextOverlaySettings
+                config={textOverlayConfig}
+                onConfigChange={setTextOverlayConfig}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <ProgressBarSettings
+                config={progressBarConfig}
+                onConfigChange={setProgressBarConfig}
               />
 
               <Separator className="bg-border/50" />
@@ -327,6 +353,25 @@ export default function Home() {
                 onEffectsChange={setImageEffects}
               />
 
+              <BlendModeSettings
+                config={blendModeConfig}
+                onConfigChange={setBlendModeConfig}
+                hasImageEffects={!!customImage && imageEffects.enabled}
+              />
+
+              <KenBurnsSettings
+                config={kenBurnsConfig}
+                onConfigChange={setKenBurnsConfig}
+                hasImage={!!customImage}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <ParticleOverlaySettings
+                config={particleOverlayConfig}
+                onConfigChange={setParticleOverlayConfig}
+              />
+
               <Separator className="bg-border/50" />
 
               <ExportControls
@@ -334,6 +379,8 @@ export default function Home() {
                 audioElement={audioElement}
                 isPlaying={isPlaying}
                 onPlayStateChange={handlePlayStateChange}
+                aspectRatio={aspectRatioConfig.ratio}
+                letterboxColor={aspectRatioConfig.letterboxColor}
               />
             </div>
           </ScrollArea>
@@ -343,7 +390,14 @@ export default function Home() {
           <div className="p-4 flex flex-col gap-4 h-full">
             <div 
               ref={containerRef}
-              className="relative w-full aspect-video max-h-[60vh] rounded-xl overflow-hidden border border-border/30 bg-black/50"
+              className={`relative w-full max-h-[60vh] rounded-xl overflow-hidden border border-border/30 ${
+                aspectRatioConfig.ratio === "16:9" ? "aspect-video" :
+                aspectRatioConfig.ratio === "9:16" ? "aspect-[9/16] max-w-[40%] mx-auto" :
+                aspectRatioConfig.ratio === "1:1" ? "aspect-square max-w-[60%] mx-auto" :
+                aspectRatioConfig.ratio === "4:5" ? "aspect-[4/5] max-w-[50%] mx-auto" :
+                "aspect-video"
+              }`}
+              style={{ backgroundColor: aspectRatioConfig.letterboxColor }}
             >
               {audioUrl ? (
                 <>
@@ -361,10 +415,14 @@ export default function Home() {
                     rotationSpeed={rotationSpeed}
                     mirrorMode={mirrorMode}
                     backgroundImage={aiBackground}
-                    overlayText={overlayText}
-                    overlayPosition={overlayPosition}
                     customImage={customImage}
                     imageEffects={imageEffects}
+                    blendMode={blendModeConfig.mode}
+                    blendOpacity={blendModeConfig.opacity}
+                    kenBurnsConfig={kenBurnsConfig}
+                    particleOverlayConfig={particleOverlayConfig}
+                    textOverlayConfig={textOverlayConfig}
+                    progressBarConfig={progressBarConfig}
                   />
                   <Button
                     size="icon"

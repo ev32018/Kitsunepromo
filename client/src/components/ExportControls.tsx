@@ -1,22 +1,28 @@
-import { useState, useRef, useCallback, type RefObject } from "react";
+import { useState, useRef, useCallback, useEffect, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Download, Video, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { VisualizerCanvasHandle } from "@/components/VisualizerCanvas";
+import type { AspectRatio } from "@/components/AspectRatioSettings";
 
 interface ExportControlsProps {
   canvasRef: RefObject<VisualizerCanvasHandle | null>;
   audioElement: HTMLAudioElement | null;
   isPlaying: boolean;
   onPlayStateChange: (playing: boolean) => void;
+  aspectRatio?: AspectRatio;
+  letterboxColor?: string;
 }
 
 type ExportQuality = "720p" | "1080p" | "1440p";
 type ExportFormat = "webm" | "mp4";
+type FrameRate = 24 | 30 | 60;
 
 const qualitySettings: Record<ExportQuality, { width: number; height: number }> = {
   "720p": { width: 1280, height: 720 },
@@ -24,20 +30,63 @@ const qualitySettings: Record<ExportQuality, { width: number; height: number }> 
   "1440p": { width: 2560, height: 1440 },
 };
 
+function getExportDimensions(quality: ExportQuality, aspectRatio: AspectRatio = "16:9"): { width: number; height: number } {
+  const base = qualitySettings[quality];
+  switch (aspectRatio) {
+    case "16:9":
+      return base;
+    case "9:16":
+      return { width: base.height * 9 / 16, height: base.height };
+    case "1:1":
+      return { width: base.height, height: base.height };
+    case "4:5":
+      return { width: base.height * 4 / 5, height: base.height };
+    default:
+      return base;
+  }
+}
+
 export function ExportControls({
   canvasRef,
   audioElement,
   isPlaying,
   onPlayStateChange,
+  aspectRatio = "16:9",
+  letterboxColor = "#000000",
 }: ExportControlsProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [quality, setQuality] = useState<ExportQuality>("1080p");
   const [format, setFormat] = useState<ExportFormat>("webm");
+  const [frameRate, setFrameRate] = useState<FrameRate>(30);
+  const [fadeIn, setFadeIn] = useState(0);
+  const [fadeOut, setFadeOut] = useState(0);
+  const [loopPreview, setLoopPreview] = useState(false);
   const [exportComplete, setExportComplete] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
+
+  // Handle loop preview by setting audio element loop property
+  const handleLoopPreviewChange = useCallback((enabled: boolean) => {
+    setLoopPreview(enabled);
+    if (audioElement) {
+      audioElement.loop = enabled;
+    }
+  }, [audioElement]);
+
+  // Synchronize loop state with audioElement and cleanup on unmount
+  useEffect(() => {
+    if (audioElement) {
+      audioElement.loop = loopPreview;
+    }
+    return () => {
+      // Reset loop when component unmounts or audioElement changes
+      if (audioElement) {
+        audioElement.loop = false;
+      }
+    };
+  }, [audioElement, loopPreview]);
 
   const startExport = useCallback(async () => {
     const canvas = canvasRef.current?.getCanvas();
@@ -56,14 +105,18 @@ export function ExportControls({
       setExportComplete(false);
       chunksRef.current = [];
 
-      const { width, height } = qualitySettings[quality];
+      const { width, height } = getExportDimensions(quality, aspectRatio);
       
       const exportCanvas = document.createElement("canvas");
-      exportCanvas.width = width;
-      exportCanvas.height = height;
+      exportCanvas.width = Math.round(width);
+      exportCanvas.height = Math.round(height);
       const exportCtx = exportCanvas.getContext("2d")!;
+      
+      // Fill with letterbox color initially
+      exportCtx.fillStyle = letterboxColor;
+      exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
-      const stream = exportCanvas.captureStream(60);
+      const stream = exportCanvas.captureStream(frameRate);
       
       const audioContext = new AudioContext();
       const source = audioContext.createMediaElementSource(audioElement);
@@ -131,12 +184,58 @@ export function ExportControls({
       const duration = audioElement.duration * 1000;
       const startTime = Date.now();
 
+      const fadeInDuration = fadeIn * 1000;
+      const fadeOutDuration = fadeOut * 1000;
+
+      // Calculate aspect-ratio-aware draw dimensions
+      const srcAspect = canvas.width / canvas.height;
+      const dstAspect = exportCanvas.width / exportCanvas.height;
+      let drawWidth = exportCanvas.width;
+      let drawHeight = exportCanvas.height;
+      let offsetX = 0;
+      let offsetY = 0;
+      
+      if (srcAspect > dstAspect) {
+        // Source is wider - letterbox top/bottom
+        drawHeight = exportCanvas.width / srcAspect;
+        offsetY = (exportCanvas.height - drawHeight) / 2;
+      } else if (srcAspect < dstAspect) {
+        // Source is taller - letterbox left/right
+        drawWidth = exportCanvas.height * srcAspect;
+        offsetX = (exportCanvas.width - drawWidth) / 2;
+      }
+
       const drawLoop = () => {
         if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== "recording") return;
         
-        exportCtx.drawImage(canvas, 0, 0, width, height);
-        
         const elapsed = Date.now() - startTime;
+        const remaining = duration - elapsed;
+        
+        // Clear with letterbox color
+        exportCtx.globalAlpha = 1;
+        exportCtx.fillStyle = letterboxColor;
+        exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        
+        // Draw visualization preserving aspect ratio
+        exportCtx.drawImage(canvas, offsetX, offsetY, drawWidth, drawHeight);
+        
+        // Apply fade-in/out effects
+        let fadeAlpha = 0;
+        if (fadeInDuration > 0 && elapsed < fadeInDuration) {
+          // Fade in: black overlay fading from 1 to 0
+          fadeAlpha = 1 - (elapsed / fadeInDuration);
+        } else if (fadeOutDuration > 0 && remaining < fadeOutDuration) {
+          // Fade out: black overlay fading from 0 to 1
+          fadeAlpha = 1 - (remaining / fadeOutDuration);
+        }
+        
+        if (fadeAlpha > 0) {
+          exportCtx.globalAlpha = fadeAlpha;
+          exportCtx.fillStyle = "#000000";
+          exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+          exportCtx.globalAlpha = 1;
+        }
+        
         setExportProgress(Math.min(100, (elapsed / duration) * 100));
         
         if (elapsed < duration) {
@@ -161,7 +260,7 @@ export function ExportControls({
         variant: "destructive",
       });
     }
-  }, [canvasRef, audioElement, quality, format, onPlayStateChange, toast]);
+  }, [canvasRef, audioElement, quality, format, frameRate, fadeIn, fadeOut, aspectRatio, letterboxColor, onPlayStateChange, toast]);
 
   const cancelExport = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
@@ -216,6 +315,61 @@ export function ExportControls({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Frame Rate</Label>
+            <Select value={String(frameRate)} onValueChange={(v) => setFrameRate(Number(v) as FrameRate)}>
+              <SelectTrigger data-testid="select-framerate">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24">24 fps (Cinematic)</SelectItem>
+                <SelectItem value="30">30 fps (Standard)</SelectItem>
+                <SelectItem value="60">60 fps (Smooth)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Fade In</Label>
+                <span className="text-xs text-muted-foreground">{fadeIn}s</span>
+              </div>
+              <Slider
+                value={[fadeIn]}
+                onValueChange={([v]) => setFadeIn(v)}
+                min={0}
+                max={3}
+                step={0.5}
+                data-testid="slider-fade-in"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Fade Out</Label>
+                <span className="text-xs text-muted-foreground">{fadeOut}s</span>
+              </div>
+              <Slider
+                value={[fadeOut]}
+                onValueChange={([v]) => setFadeOut(v)}
+                min={0}
+                max={3}
+                step={0.5}
+                data-testid="slider-fade-out"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Loop Preview</Label>
+            <Switch
+              checked={loopPreview}
+              onCheckedChange={handleLoopPreviewChange}
+              data-testid="switch-loop-preview"
+            />
           </div>
 
           <Button
