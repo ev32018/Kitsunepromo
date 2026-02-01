@@ -36,6 +36,11 @@ AudioViz is a professional audio visualization web application that creates stun
   - Genre: EDM Energy, Hip-Hop Beats, Lo-fi Chill, Rock Anthem, Classical Elegance, Pop Vibes
   - Style: Cyberpunk, Minimalist, Retro Wave, Neon Dreams, Dark Mode, Ocean Vibes, Galaxy Space
   - Search and filter by category, quick-apply from sidebar
+- **Audio Trimming**: Select start/end points for export with visual timeline, time inputs, sliders, and preview functionality
+- **Watermark/Logo System**: Drag-and-drop upload with 9 position options, size, opacity, and padding controls
+- **Performance Mode**: 4 quality levels (low/medium/high/ultra), FPS options (24/30/60), particle reduction toggle
+- **Thumbnail Generator**: Auto-generate thumbnails for 6 social platforms (YouTube, TikTok, Instagram, Twitter, Facebook) with capture time selection and batch download
+- **Intro/Outro Fades**: 8 transition effects (fade, fade-blur, fade-zoom, slide directions), customizable duration and background colors
 
 ## Tech Stack
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI
@@ -67,7 +72,12 @@ client/
 │   │   ├── ParticleOverlaySettings.tsx
 │   │   ├── TextOverlaySettings.tsx
 │   │   ├── ProgressBarSettings.tsx
-│   │   └── TemplateGallery.tsx
+│   │   ├── TemplateGallery.tsx
+│   │   ├── AudioTrimmer.tsx
+│   │   ├── WatermarkSettings.tsx
+│   │   ├── PerformanceSettings.tsx
+│   │   ├── ThumbnailGenerator.tsx
+│   │   └── FadeSettings.tsx
 │   ├── lib/           # Utility libraries
 │   │   ├── audioAnalyzer.ts    # Web Audio API wrapper
 │   │   ├── visualizers.ts      # Canvas visualization renderers
