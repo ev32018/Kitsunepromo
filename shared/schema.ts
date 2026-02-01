@@ -94,7 +94,10 @@ export const visualizationTypes = [
   "mountainRange",
   "spectrumAnalyzer",
   "equalizer",
-  "audioBars"
+  "audioBars",
+  "perlinFluid",
+  "audioBlob",
+  "kaleidoscope"
 ] as const;
 
 export type VisualizationType = typeof visualizationTypes[number];

@@ -105,6 +105,15 @@ export function drawVisualization(
     case "audioBars":
       drawAudioBars(ctx, canvas, audioData, colors, cfg);
       break;
+    case "perlinFluid":
+      drawPerlinFluid(ctx, canvas, audioData, colors, cfg);
+      break;
+    case "audioBlob":
+      drawAudioBlob(ctx, canvas, audioData, colors, cfg);
+      break;
+    case "kaleidoscope":
+      drawKaleidoscope(ctx, canvas, audioData, colors, cfg);
+      break;
   }
 }
 
@@ -587,6 +596,309 @@ function drawAudioBars(
 
     ctx.fillRect(x, centerY - barHeight / 2, barWidth, barHeight);
   }
+  ctx.shadowBlur = 0;
+}
+
+// Value noise implementation for organic flowing effects
+function noise2D(x: number, y: number): number {
+  const permutation = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+  
+  const xi = Math.floor(x) & 255;
+  const yi = Math.floor(y) & 255;
+  const xf = x - Math.floor(x);
+  const yf = y - Math.floor(y);
+  
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  
+  const aa = permutation[(permutation[xi] + yi) & 255];
+  const ab = permutation[(permutation[xi] + yi + 1) & 255];
+  const ba = permutation[(permutation[(xi + 1) & 255] + yi) & 255];
+  const bb = permutation[(permutation[(xi + 1) & 255] + yi + 1) & 255];
+  
+  const x1 = (1 - u) * ((aa & 1) === 0 ? xf : -xf) + u * ((ba & 1) === 0 ? xf - 1 : -(xf - 1));
+  const x2 = (1 - u) * ((ab & 1) === 0 ? xf : -xf) + u * ((bb & 1) === 0 ? xf - 1 : -(xf - 1));
+  
+  return (1 - v) * x1 + v * x2;
+}
+
+function drawPerlinFluid(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  colors: string[],
+  config: VisualizerConfig
+): void {
+  const { width, height } = canvas;
+  const { bassLevel, midLevel, trebleLevel, averageFrequency } = audioData;
+  const time = Date.now() * 0.0005;
+  
+  const resolution = 8;
+  const cols = Math.ceil(width / resolution);
+  const rows = Math.ceil(height / resolution);
+  
+  const bassNorm = bassLevel / 255;
+  const midNorm = midLevel / 255;
+  const trebleNorm = trebleLevel / 255;
+  
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const nx = x / cols;
+      const ny = y / rows;
+      
+      const noiseVal = noise2D(
+        nx * 4 + time + bassNorm * 2,
+        ny * 4 + time * 0.7 + midNorm
+      );
+      
+      const noiseVal2 = noise2D(
+        nx * 8 + time * 1.5,
+        ny * 8 + time * 0.5 + trebleNorm * 3
+      );
+      
+      const combined = (noiseVal + noiseVal2 * 0.5 + 1) / 2;
+      const intensity = combined * config.sensitivity * (0.5 + averageFrequency / 255);
+      
+      const colorIndex = Math.floor(combined * (colors.length - 1));
+      
+      const baseColor = colors[colorIndex];
+      const alpha = Math.min(255, Math.max(0, Math.floor(intensity * 200 + 55)));
+      
+      ctx.fillStyle = baseColor + alpha.toString(16).padStart(2, '0');
+      ctx.fillRect(x * resolution, y * resolution, resolution, resolution);
+    }
+  }
+  
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 3; i++) {
+    const layerTime = time + i * 0.3;
+    const amplitude = (i === 0 ? bassNorm : i === 1 ? midNorm : trebleNorm) * 100 * config.sensitivity;
+    
+    ctx.beginPath();
+    for (let x = 0; x <= width; x += 3) {
+      const nx = x / width;
+      const noiseY = noise2D(nx * 3 + layerTime, i + layerTime * 0.5);
+      const y = height / 2 + noiseY * amplitude + (i - 1) * 50;
+      
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    
+    ctx.strokeStyle = colors[i % colors.length] + '80';
+    ctx.lineWidth = 3 + bassNorm * 5;
+    ctx.shadowColor = colors[i % colors.length];
+    ctx.shadowBlur = 20 * config.glowIntensity;
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.shadowBlur = 0;
+}
+
+function drawAudioBlob(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  colors: string[],
+  config: VisualizerConfig
+): void {
+  const { width, height } = canvas;
+  const { frequencyData, bassLevel, midLevel, trebleLevel } = audioData;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const time = Date.now() * 0.002;
+  
+  const baseRadius = Math.min(width, height) * 0.25;
+  const bassNorm = bassLevel / 255;
+  const midNorm = midLevel / 255;
+  const trebleNorm = trebleLevel / 255;
+  
+  for (let layer = 2; layer >= 0; layer--) {
+    const points = 128;
+    const layerRadius = baseRadius * (0.6 + layer * 0.25);
+    const layerAmplitude = 30 + layer * 20;
+    
+    ctx.beginPath();
+    
+    for (let i = 0; i <= points; i++) {
+      const angle = (i / points) * Math.PI * 2;
+      const freqIndex = Math.floor((i / points) * (frequencyData.length / 4));
+      const freqValue = frequencyData[freqIndex] / 255;
+      
+      const noise1 = Math.sin(angle * 3 + time + layer) * 0.3;
+      const noise2 = Math.sin(angle * 5 - time * 0.7) * 0.2;
+      const noise3 = Math.cos(angle * 7 + time * 1.3) * 0.15;
+      
+      const displacement = (
+        freqValue * config.sensitivity +
+        bassNorm * 0.5 * Math.sin(angle * 2 + time) +
+        midNorm * 0.3 * Math.sin(angle * 4 - time) +
+        trebleNorm * 0.2 * Math.sin(angle * 8 + time * 2) +
+        noise1 + noise2 + noise3
+      ) * layerAmplitude;
+      
+      const r = layerRadius + displacement;
+      const x = centerX + Math.cos(angle + rotation * (layer + 1) * 0.5) * r;
+      const y = centerY + Math.sin(angle + rotation * (layer + 1) * 0.5) * r;
+      
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    
+    ctx.closePath();
+    
+    const gradient = ctx.createRadialGradient(
+      centerX, centerY, 0,
+      centerX, centerY, layerRadius + layerAmplitude
+    );
+    const colorIndex = layer % colors.length;
+    gradient.addColorStop(0, colors[colorIndex] + '40');
+    gradient.addColorStop(0.5, colors[(colorIndex + 1) % colors.length] + '60');
+    gradient.addColorStop(1, colors[(colorIndex + 2) % colors.length] + '20');
+    
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = colors[colorIndex];
+    ctx.shadowBlur = 30 * config.glowIntensity * (1 + bassNorm);
+    ctx.fill();
+    
+    ctx.strokeStyle = colors[colorIndex] + '80';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  
+  const coreGradient = ctx.createRadialGradient(
+    centerX, centerY, 0,
+    centerX, centerY, baseRadius * 0.4
+  );
+  coreGradient.addColorStop(0, colors[0] + 'ff');
+  coreGradient.addColorStop(0.5, colors[1 % colors.length] + '80');
+  coreGradient.addColorStop(1, colors[2 % colors.length] + '00');
+  
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, baseRadius * 0.4 * (1 + bassNorm * 0.3), 0, Math.PI * 2);
+  ctx.fillStyle = coreGradient;
+  ctx.shadowColor = colors[0];
+  ctx.shadowBlur = 40 * config.glowIntensity;
+  ctx.fill();
+  
+  ctx.shadowBlur = 0;
+}
+
+function drawKaleidoscope(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  colors: string[],
+  config: VisualizerConfig
+): void {
+  const { width, height } = canvas;
+  const { frequencyData, bassLevel, midLevel, trebleLevel, timeDomainData } = audioData;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const time = Date.now() * 0.001;
+  
+  const segments = 8;
+  const angleStep = (Math.PI * 2) / segments;
+  
+  const bassNorm = bassLevel / 255;
+  const midNorm = midLevel / 255;
+  const trebleNorm = trebleLevel / 255;
+  
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.rotate(rotation);
+  
+  for (let seg = 0; seg < segments; seg++) {
+    ctx.save();
+    ctx.rotate(seg * angleStep);
+    
+    if (seg % 2 === 1) {
+      ctx.scale(-1, 1);
+    }
+    
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, Math.min(width, height) * 0.5, 0, angleStep);
+    ctx.closePath();
+    ctx.clip();
+    
+    const numShapes = 12;
+    for (let i = 0; i < numShapes; i++) {
+      const freqIndex = Math.floor((i / numShapes) * (frequencyData.length / 4));
+      const freqValue = frequencyData[freqIndex] / 255 * config.sensitivity;
+      
+      const angle = (i / numShapes) * angleStep * 0.8;
+      const baseDistance = 30 + i * 25;
+      const distance = baseDistance + freqValue * 80;
+      
+      const x = Math.cos(angle) * distance;
+      const y = Math.sin(angle) * distance;
+      
+      const size = 10 + freqValue * 40 + bassNorm * 20;
+      const colorIndex = (i + seg) % colors.length;
+      
+      const shapeType = i % 3;
+      
+      ctx.beginPath();
+      if (shapeType === 0) {
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+      } else if (shapeType === 1) {
+        const points = 6;
+        for (let p = 0; p <= points; p++) {
+          const pAngle = (p / points) * Math.PI * 2 + time;
+          const pRadius = size * (0.8 + Math.sin(pAngle * 3 + time) * 0.2);
+          const px = x + Math.cos(pAngle) * pRadius;
+          const py = y + Math.sin(pAngle) * pRadius;
+          if (p === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+      } else {
+        const sides = 4;
+        for (let s = 0; s <= sides; s++) {
+          const sAngle = (s / sides) * Math.PI * 2 + time * 0.5 + rotation;
+          const px = x + Math.cos(sAngle) * size;
+          const py = y + Math.sin(sAngle) * size;
+          if (s === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+      }
+      ctx.closePath();
+      
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+      gradient.addColorStop(0, colors[colorIndex] + 'cc');
+      gradient.addColorStop(0.6, colors[(colorIndex + 1) % colors.length] + '80');
+      gradient.addColorStop(1, colors[(colorIndex + 2) % colors.length] + '00');
+      
+      ctx.fillStyle = gradient;
+      ctx.shadowColor = colors[colorIndex];
+      ctx.shadowBlur = 15 * config.glowIntensity;
+      ctx.fill();
+    }
+    
+    const wavePoints = 32;
+    ctx.beginPath();
+    for (let i = 0; i <= wavePoints; i++) {
+      const wAngle = (i / wavePoints) * angleStep;
+      const waveIndex = Math.floor((i / wavePoints) * timeDomainData.length);
+      const waveValue = (timeDomainData[waveIndex] - 128) / 128;
+      const waveRadius = 100 + waveValue * 50 * config.sensitivity + midNorm * 30;
+      
+      const wx = Math.cos(wAngle) * waveRadius;
+      const wy = Math.sin(wAngle) * waveRadius;
+      
+      if (i === 0) ctx.moveTo(wx, wy);
+      else ctx.lineTo(wx, wy);
+    }
+    
+    ctx.strokeStyle = colors[seg % colors.length] + '60';
+    ctx.lineWidth = 2 + bassNorm * 3;
+    ctx.shadowColor = colors[seg % colors.length];
+    ctx.shadowBlur = 10 * config.glowIntensity;
+    ctx.stroke();
+    
+    ctx.restore();
+  }
+  
+  ctx.restore();
   ctx.shadowBlur = 0;
 }
 

@@ -13,6 +13,9 @@ import {
   Radio,
   SlidersHorizontal,
   AudioWaveform,
+  Droplets,
+  Atom,
+  Snowflake,
 } from "lucide-react";
 
 interface VisualizationStylePickerProps {
@@ -78,6 +81,21 @@ const visualizationMeta: Record<
     icon: AudioWaveform,
     label: "Audio Bars",
     description: "Centered wave bars",
+  },
+  perlinFluid: {
+    icon: Droplets,
+    label: "Perlin Fluid",
+    description: "Organic flowing patterns",
+  },
+  audioBlob: {
+    icon: Atom,
+    label: "Audio Blob",
+    description: "Morphing 3D sphere",
+  },
+  kaleidoscope: {
+    icon: Snowflake,
+    label: "Kaleidoscope",
+    description: "Symmetrical patterns",
   },
 };
 
