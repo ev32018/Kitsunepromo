@@ -20,12 +20,16 @@ import {
   Music,
   Film,
   Sparkles,
-  Columns,
-  Square,
   Rows,
-  PanelTop,
   PanelBottom,
-  Maximize2
+  Maximize2,
+  Upload,
+  Image,
+  FileVideo,
+  FileAudio,
+  X,
+  Undo2,
+  Redo2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { TimelineTrack, TimelineClip, TrackType, ClipType, VisualizationType } from "@shared/schema";
+import type { TimelineTrack, TimelineClip, TrackType, ClipType, VisualizationType, MediaFile, MediaFileType } from "@shared/schema";
 import { visualizationTypes } from "@shared/schema";
 
 function formatTime(seconds: number): string {
@@ -470,9 +474,19 @@ function TrackLane({
 
 function MediaLibrary({
   onAddToTimeline,
+  mediaFiles,
+  onUploadMedia,
+  onRemoveMedia,
 }: {
-  onAddToTimeline: (type: ClipType, name: string, visualizationType?: string) => void;
+  onAddToTimeline: (type: ClipType, name: string, visualizationType?: string, mediaUrl?: string) => void;
+  mediaFiles: MediaFile[];
+  onUploadMedia: (file: File, type: MediaFileType) => void;
+  onRemoveMedia: (id: string) => void;
 }) {
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+
   const visualizerPresets = visualizationTypes.map((vt) => ({
     type: "visualizer" as ClipType,
     name: vt.split(/(?=[A-Z])/).join(" ").replace(/^./, s => s.toUpperCase()),
@@ -480,35 +494,160 @@ function MediaLibrary({
     icon: Sparkles,
   }));
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: MediaFileType) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => onUploadMedia(file, type));
+    }
+    e.target.value = "";
+  };
+
+  const getMediaIcon = (type: MediaFileType) => {
+    switch (type) {
+      case "video": return FileVideo;
+      case "image": return Image;
+      case "audio": return FileAudio;
+    }
+  };
+
+  const getMediaColor = (type: MediaFileType) => {
+    switch (type) {
+      case "video": return "text-blue-500";
+      case "image": return "text-purple-500";
+      case "audio": return "text-green-500";
+    }
+  };
+
   return (
-    <div className="p-4">
-      <h3 className="text-sm font-semibold mb-3">Visualizer Presets</h3>
-      <div className="space-y-1 max-h-[400px] overflow-y-auto">
-        {visualizerPresets.map((item, i) => (
-          <div
-            key={item.visualizationType}
-            className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData("application/json", JSON.stringify(item));
-            }}
-            onDoubleClick={() => onAddToTimeline(item.type, item.name, item.visualizationType)}
-            data-testid={`media-item-${i}`}
+    <div className="p-4 flex flex-col h-full overflow-hidden">
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold mb-3">Import Media</h3>
+        <div className="flex gap-2">
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => handleFileUpload(e, "video")}
+            multiple
+            data-testid="input-upload-video"
+          />
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFileUpload(e, "image")}
+            multiple
+            data-testid="input-upload-image"
+          />
+          <input
+            ref={audioInputRef}
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={(e) => handleFileUpload(e, "audio")}
+            multiple
+            data-testid="input-upload-audio"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={() => videoInputRef.current?.click()}
+            data-testid="button-upload-video"
           >
-            <item.icon className="w-4 h-4 text-primary" />
-            <span className="text-sm truncate">{item.name}</span>
-          </div>
-        ))}
+            <FileVideo className="w-4 h-4 mr-1" />
+            Video
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={() => imageInputRef.current?.click()}
+            data-testid="button-upload-image"
+          >
+            <Image className="w-4 h-4 mr-1" />
+            Image
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={() => audioInputRef.current?.click()}
+            data-testid="button-upload-audio"
+          >
+            <FileAudio className="w-4 h-4 mr-1" />
+            Audio
+          </Button>
+        </div>
       </div>
-      <div className="mt-4 border-t pt-4">
-        <h3 className="text-sm font-semibold mb-3">Audio</h3>
-        <div
-          className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer"
-          onDoubleClick={() => onAddToTimeline("audio", "Audio Track")}
-          data-testid="media-audio-track"
-        >
-          <Music className="w-4 h-4 text-green-500" />
-          <span className="text-sm">Add Audio Track</span>
+
+      {mediaFiles.length > 0 && (
+        <div className="mb-4 border-t pt-4">
+          <h3 className="text-sm font-semibold mb-3">Uploaded Media ({mediaFiles.length})</h3>
+          <div className="space-y-1 max-h-[150px] overflow-y-auto">
+            {mediaFiles.map((media) => {
+              const Icon = getMediaIcon(media.type);
+              const clipType: ClipType = media.type === "image" ? "image" : media.type;
+              return (
+                <div
+                  key={media.id}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer group"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/json", JSON.stringify({
+                      type: clipType,
+                      name: media.name,
+                      mediaUrl: media.url,
+                    }));
+                  }}
+                  onDoubleClick={() => onAddToTimeline(clipType, media.name, undefined, media.url)}
+                  data-testid={`media-file-${media.id}`}
+                >
+                  {media.type === "image" && media.url ? (
+                    <img src={media.url} alt={media.name} className="w-8 h-8 object-cover rounded" />
+                  ) : (
+                    <Icon className={`w-4 h-4 ${getMediaColor(media.type)}`} />
+                  )}
+                  <span className="text-sm truncate flex-1">{media.name}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="w-6 h-6 opacity-0 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveMedia(media.id);
+                    }}
+                    data-testid={`button-remove-media-${media.id}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t pt-4 flex-1 overflow-hidden flex flex-col">
+        <h3 className="text-sm font-semibold mb-3">Visualizer Presets</h3>
+        <div className="space-y-1 flex-1 overflow-y-auto">
+          {visualizerPresets.map((item, i) => (
+            <div
+              key={item.visualizationType}
+              className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("application/json", JSON.stringify(item));
+              }}
+              onDoubleClick={() => onAddToTimeline(item.type, item.name, item.visualizationType)}
+              data-testid={`media-item-${i}`}
+            >
+              <item.icon className="w-4 h-4 text-primary" />
+              <span className="text-sm truncate">{item.name}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -532,12 +671,27 @@ export default function Editor() {
     setZoom,
     setIsPlaying,
     getClipsForTrack,
+    addMediaFile,
+    removeMediaFile,
+    deleteSelectedClip,
+    addClipWithAutoTrack,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    cleanup,
   } = useTimelineState();
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
   const timelineRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const lastTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
 
   useEffect(() => {
     if (!state.isPlaying) {
@@ -580,22 +734,52 @@ export default function Editor() {
     addClip(trackId, clipType, startTime, 5, `${track.type} clip`);
   }, [state.tracks, addClip]);
 
-  const handleAddMediaToTimeline = useCallback((type: ClipType, name: string, visualizationType?: string) => {
-    const trackType: TrackType = type === "audio" ? "audio" : 
-                                  type === "visualizer" ? "visualizer" : "video";
-    let track = state.tracks.find((t) => t.type === trackType);
+  const handleAddMediaToTimeline = useCallback((type: ClipType, name: string, visualizationType?: string, mediaUrl?: string) => {
+    addClipWithAutoTrack(type, state.playhead, 5, name, {
+      visualizationType: visualizationType as VisualizationType,
+      mediaUrl,
+    });
+  }, [state.playhead, addClipWithAutoTrack]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      
+      switch (e.key) {
+        case "Delete":
+        case "Backspace":
+          if (state.selectedClipId) {
+            deleteSelectedClip();
+          }
+          break;
+        case " ":
+          e.preventDefault();
+          setIsPlaying(!state.isPlaying);
+          break;
+      }
+    };
     
-    if (!track) {
-      addTrack(trackType);
-      track = state.tracks.find((t) => t.type === trackType);
-    }
-    
-    if (track) {
-      addClip(track.id, type, state.playhead, 5, name, {
-        visualizationType: visualizationType as VisualizationType,
-      });
-    }
-  }, [state.tracks, state.playhead, addTrack, addClip]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [state.selectedClipId, state.isPlaying, deleteSelectedClip, setIsPlaying, undo, redo]);
 
   const pxPerSecond = 50 * state.zoom;
   const totalWidth = state.project.duration * pxPerSecond;
@@ -610,6 +794,28 @@ export default function Editor() {
               Back to Studio
             </Button>
           </Link>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={undo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+              data-testid="button-undo"
+            >
+              <Undo2 className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={redo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Shift+Z)"
+              data-testid="button-redo"
+            >
+              <Redo2 className="w-4 h-4" />
+            </Button>
+          </div>
           <h1 className="text-lg font-semibold">{state.project.name}</h1>
         </div>
         <div className="flex items-center gap-4">
@@ -651,7 +857,12 @@ export default function Editor() {
       <div className="flex-1 flex overflow-hidden min-h-0">
         {layoutMode !== "preview" && (
           <aside className="w-64 border-r bg-card overflow-y-auto flex-shrink-0">
-            <MediaLibrary onAddToTimeline={handleAddMediaToTimeline} />
+            <MediaLibrary 
+              onAddToTimeline={handleAddMediaToTimeline}
+              mediaFiles={state.mediaFiles}
+              onUploadMedia={addMediaFile}
+              onRemoveMedia={removeMediaFile}
+            />
           </aside>
         )}
 

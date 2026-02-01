@@ -5,7 +5,9 @@ import type {
   TimelineTrack, 
   TimelineClip,
   TrackType,
-  ClipType 
+  ClipType,
+  MediaFile,
+  MediaFileType
 } from "@shared/schema";
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -27,6 +29,7 @@ const initialState: TimelineState = {
   project: defaultProject,
   tracks: defaultTracks,
   clips: [],
+  mediaFiles: [],
   playhead: 0,
   zoom: 1,
   isPlaying: false,
@@ -40,8 +43,56 @@ const trackColors: Record<TrackType, string> = {
   visualizer: "#a855f7",
 };
 
+const MAX_HISTORY = 50;
+
+interface HistoryState {
+  history: TimelineState[];
+  index: number;
+}
+
 export function useTimelineState() {
   const [state, setState] = useState<TimelineState>(initialState);
+  const [historyState, setHistoryState] = useState<HistoryState>({
+    history: [initialState],
+    index: 0,
+  });
+
+  const saveToHistory = useCallback((newState: TimelineState) => {
+    setHistoryState((prev) => {
+      const newHistory = prev.history.slice(0, prev.index + 1);
+      newHistory.push(newState);
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory.shift();
+        return { history: newHistory, index: newHistory.length - 1 };
+      }
+      return { history: newHistory, index: prev.index + 1 };
+    });
+  }, []);
+
+  const undo = useCallback(() => {
+    setHistoryState((prev) => {
+      if (prev.index > 0) {
+        const newIndex = prev.index - 1;
+        setState(prev.history[newIndex]);
+        return { ...prev, index: newIndex };
+      }
+      return prev;
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setHistoryState((prev) => {
+      if (prev.index < prev.history.length - 1) {
+        const newIndex = prev.index + 1;
+        setState(prev.history[newIndex]);
+        return { ...prev, index: newIndex };
+      }
+      return prev;
+    });
+  }, []);
+
+  const canUndo = historyState.index > 0;
+  const canRedo = historyState.index < historyState.history.length - 1;
 
   const addTrack = useCallback((type: TrackType, name?: string) => {
     setState((prev) => {
@@ -55,17 +106,23 @@ export function useTimelineState() {
         height: type === "audio" ? 40 : 60,
         order: prev.tracks.length,
       };
-      return { ...prev, tracks: [...prev.tracks, newTrack] };
+      const newState = { ...prev, tracks: [...prev.tracks, newTrack] };
+      saveToHistory(newState);
+      return newState;
     });
-  }, []);
+  }, [saveToHistory]);
 
   const removeTrack = useCallback((trackId: string) => {
-    setState((prev) => ({
-      ...prev,
-      tracks: prev.tracks.filter((t) => t.id !== trackId),
-      clips: prev.clips.filter((c) => c.trackId !== trackId),
-    }));
-  }, []);
+    setState((prev) => {
+      const newState = {
+        ...prev,
+        tracks: prev.tracks.filter((t) => t.id !== trackId),
+        clips: prev.clips.filter((c) => c.trackId !== trackId),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
 
   const toggleTrackMute = useCallback((trackId: string) => {
     setState((prev) => ({
@@ -112,21 +169,81 @@ export function useTimelineState() {
 
       const newDuration = Math.max(prev.project.duration, startTime + duration + 10);
       
-      return {
+      const newState = {
         ...prev,
         clips: [...prev.clips, newClip],
         project: { ...prev.project, duration: newDuration },
       };
+      saveToHistory(newState);
+      return newState;
     });
-  }, []);
+  }, [saveToHistory]);
+
+  const addClipWithAutoTrack = useCallback((
+    type: ClipType,
+    startTime: number,
+    duration: number,
+    name?: string,
+    options?: Partial<TimelineClip>
+  ) => {
+    setState((prev) => {
+      const trackType: TrackType = type === "audio" ? "audio" : type === "visualizer" ? "visualizer" : "video";
+      let track = prev.tracks.find((t) => t.type === trackType);
+      let newTracks = prev.tracks;
+      
+      if (!track) {
+        const trackCount = prev.tracks.filter((t) => t.type === trackType).length + 1;
+        track = {
+          id: generateId(),
+          name: `${trackType.charAt(0).toUpperCase() + trackType.slice(1)} ${trackCount}`,
+          type: trackType,
+          muted: false,
+          locked: false,
+          height: trackType === "audio" ? 40 : 60,
+          order: prev.tracks.length,
+        };
+        newTracks = [...prev.tracks, track];
+      }
+      
+      if (track.locked) return prev;
+
+      const newClip: TimelineClip = {
+        id: generateId(),
+        trackId: track.id,
+        type,
+        name: name || `${type} clip`,
+        startTime,
+        duration,
+        trimIn: 0,
+        trimOut: 0,
+        color: trackColors[trackType] || "#6b7280",
+        ...options,
+      };
+
+      const newDuration = Math.max(prev.project.duration, startTime + duration + 10);
+      
+      const newState = {
+        ...prev,
+        tracks: newTracks,
+        clips: [...prev.clips, newClip],
+        project: { ...prev.project, duration: newDuration },
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
 
   const removeClip = useCallback((clipId: string) => {
-    setState((prev) => ({
-      ...prev,
-      clips: prev.clips.filter((c) => c.id !== clipId),
-      selectedClipId: prev.selectedClipId === clipId ? null : prev.selectedClipId,
-    }));
-  }, []);
+    setState((prev) => {
+      const newState = {
+        ...prev,
+        clips: prev.clips.filter((c) => c.id !== clipId),
+        selectedClipId: prev.selectedClipId === clipId ? null : prev.selectedClipId,
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
 
   const moveClip = useCallback((clipId: string, newStartTime: number, newTrackId?: string) => {
     setState((prev) => {
@@ -135,7 +252,7 @@ export function useTimelineState() {
       const track = prev.tracks.find((t) => t.id === clip.trackId);
       if (track?.locked) return prev;
       
-      return {
+      const newState = {
         ...prev,
         clips: prev.clips.map((c) =>
           c.id === clipId
@@ -143,8 +260,10 @@ export function useTimelineState() {
             : c
         ),
       };
+      saveToHistory(newState);
+      return newState;
     });
-  }, []);
+  }, [saveToHistory]);
 
   const resizeClip = useCallback((clipId: string, newDuration: number, trimStart?: boolean) => {
     setState((prev) => {
@@ -153,7 +272,7 @@ export function useTimelineState() {
       const track = prev.tracks.find((t) => t.id === clip.trackId);
       if (track?.locked) return prev;
       
-      return {
+      const newState = {
         ...prev,
         clips: prev.clips.map((c) => {
           if (c.id !== clipId) return c;
@@ -169,8 +288,10 @@ export function useTimelineState() {
           return { ...c, duration: Math.max(0.5, newDuration) };
         }),
       };
+      saveToHistory(newState);
+      return newState;
     });
-  }, []);
+  }, [saveToHistory]);
 
   const selectClip = useCallback((clipId: string | null) => {
     setState((prev) => ({ ...prev, selectedClipId: clipId }));
@@ -215,6 +336,55 @@ export function useTimelineState() {
     return state.clips.filter((clip) => clip.trackId === trackId);
   }, [state.clips]);
 
+  const addMediaFile = useCallback((file: File, type: MediaFileType) => {
+    const url = URL.createObjectURL(file);
+    const mediaFile: MediaFile = {
+      id: generateId(),
+      name: file.name,
+      type,
+      url,
+    };
+    
+    setState((prev) => ({
+      ...prev,
+      mediaFiles: [...prev.mediaFiles, mediaFile],
+    }));
+    
+    return mediaFile;
+  }, []);
+
+  const removeMediaFile = useCallback((mediaId: string) => {
+    setState((prev) => {
+      const mediaFile = prev.mediaFiles.find((m) => m.id === mediaId);
+      if (mediaFile) {
+        URL.revokeObjectURL(mediaFile.url);
+      }
+      return {
+        ...prev,
+        mediaFiles: prev.mediaFiles.filter((m) => m.id !== mediaId),
+      };
+    });
+  }, []);
+
+  const deleteSelectedClip = useCallback(() => {
+    setState((prev) => {
+      if (!prev.selectedClipId) return prev;
+      const newState = {
+        ...prev,
+        clips: prev.clips.filter((c) => c.id !== prev.selectedClipId),
+        selectedClipId: null,
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const cleanup = useCallback(() => {
+    state.mediaFiles.forEach((media) => {
+      URL.revokeObjectURL(media.url);
+    });
+  }, [state.mediaFiles]);
+
   return {
     state,
     addTrack,
@@ -222,6 +392,7 @@ export function useTimelineState() {
     toggleTrackMute,
     toggleTrackLock,
     addClip,
+    addClipWithAutoTrack,
     removeClip,
     moveClip,
     resizeClip,
@@ -233,5 +404,13 @@ export function useTimelineState() {
     setProjectDuration,
     getClipsAtTime,
     getClipsForTrack,
+    addMediaFile,
+    removeMediaFile,
+    deleteSelectedClip,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    cleanup,
   };
 }

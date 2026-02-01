@@ -135,6 +135,16 @@ export type ColorScheme = typeof colorSchemes[number];
 // Timeline Editor Types
 export type TrackType = "video" | "audio" | "visualizer";
 export type ClipType = "video" | "audio" | "visualizer" | "image";
+export type MediaFileType = "video" | "audio" | "image";
+
+export interface MediaFile {
+  id: string;
+  name: string;
+  type: MediaFileType;
+  url: string;
+  duration?: number;
+  thumbnail?: string;
+}
 
 export interface TimelineProject {
   id: string;
@@ -165,6 +175,7 @@ export interface TimelineClip {
   trimIn: number;
   trimOut: number;
   color: string;
+  mediaUrl?: string;
   visualizerSettings?: VisualizationSettings;
   colorScheme?: ColorScheme;
   visualizationType?: VisualizationType;
@@ -174,6 +185,7 @@ export interface TimelineState {
   project: TimelineProject;
   tracks: TimelineTrack[];
   clips: TimelineClip[];
+  mediaFiles: MediaFile[];
   playhead: number;
   zoom: number;
   isPlaying: boolean;
