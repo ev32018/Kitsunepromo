@@ -15,11 +15,14 @@ import {
   Lock,
   Unlock,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   ZoomIn,
   ZoomOut,
   Music,
   Film,
   Sparkles,
+  Layers,
   Rows,
   PanelBottom,
   Maximize2,
@@ -36,7 +39,8 @@ import {
   Droplet,
   Eye,
   Settings2,
-  Zap
+  Zap,
+  Power
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -44,7 +48,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { TimelineTrack, TimelineClip, TrackType, ClipType, VisualizationType, MediaFile, MediaFileType } from "@shared/schema";
+import type { TimelineTrack, TimelineClip, TrackType, ClipType, VisualizationType, MediaFile, MediaFileType, ClipEffect } from "@shared/schema";
 import { visualizationTypes } from "@shared/schema";
 
 function formatTime(seconds: number): string {
@@ -571,6 +575,8 @@ function ClipComponent({
     };
   }, [isDragging, isResizingLeft, isResizingRight, pxPerSecond, onMove, onResize]);
 
+  const effectCount = clip.effects?.length || 0;
+
   return (
     <div
       className={`absolute top-1 bottom-1 rounded cursor-move select-none z-10 ${
@@ -592,13 +598,62 @@ function ClipComponent({
         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30"
         onMouseDown={handleResizeLeftDown}
       />
-      <div className="px-2 py-1 text-xs text-white truncate pointer-events-none">
-        {clip.name}
+      <div className="px-2 py-1 text-xs text-white truncate pointer-events-none flex items-center gap-1">
+        <span>{clip.name}</span>
+        {effectCount > 0 && (
+          <span className="bg-primary/30 text-white text-[9px] px-1 rounded">
+            {effectCount} fx
+          </span>
+        )}
       </div>
       <div
         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30"
         onMouseDown={handleResizeRightDown}
       />
+    </div>
+  );
+}
+
+function EffectBar({
+  effect,
+  clipStartTime,
+  clipDuration,
+  zoom,
+  onToggle,
+  onRemove,
+}: {
+  effect: ClipEffect;
+  clipStartTime: number;
+  clipDuration: number;
+  zoom: number;
+  onToggle: () => void;
+  onRemove: () => void;
+}) {
+  const pxPerSecond = 50 * zoom;
+  const effectDuration = effect.duration > 0 ? Math.min(effect.duration, clipDuration) : clipDuration;
+  const left = (clipStartTime + effect.startOffset) * pxPerSecond;
+  const width = effectDuration * pxPerSecond;
+
+  return (
+    <div
+      className={`absolute top-0.5 bottom-0.5 rounded text-[10px] flex items-center gap-1 px-1 ${
+        effect.enabled ? "bg-purple-600/80" : "bg-gray-500/50"
+      }`}
+      style={{ left, width: Math.max(width, 40) }}
+    >
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        className="flex-shrink-0 hover:opacity-80"
+      >
+        <Power className={`w-3 h-3 ${effect.enabled ? "text-green-300" : "text-gray-400"}`} />
+      </button>
+      <span className="truncate flex-1 text-white/90">{effect.name}</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        className="flex-shrink-0 hover:text-red-300"
+      >
+        <X className="w-3 h-3" />
+      </button>
     </div>
   );
 }
@@ -614,6 +669,9 @@ function TrackLane({
   onResizeClip,
   onAddClip,
   onDropMedia,
+  onDropEffectOnClip,
+  onToggleEffect,
+  onRemoveEffect,
   scrollLeft = 0,
 }: {
   track: TimelineTrack;
@@ -626,11 +684,19 @@ function TrackLane({
   onResizeClip: (id: string, newDuration: number, trimStart: boolean) => void;
   onAddClip: (startTime: number) => void;
   onDropMedia: (data: { type: ClipType; name: string; visualizationType?: string; mediaUrl?: string; duration?: number; clipSettings?: Record<string, unknown> }, startTime: number) => void;
+  onDropEffectOnClip: (clipId: string, effectData: unknown) => void;
+  onToggleEffect: (clipId: string, effectId: string) => void;
+  onRemoveEffect: (clipId: string, effectId: string) => void;
   scrollLeft?: number;
 }) {
   const pxPerSecond = 50 * zoom;
   const laneRef = useRef<HTMLDivElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Find selected clip in this track
+  const selectedClip = clips.find((c) => c.id === selectedClipId);
+  const showEffectLane = selectedClip && (selectedClip.type === "video" || selectedClip.type === "image");
+  const effectLaneHeight = 24;
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (track.locked) return;
@@ -662,39 +728,91 @@ function TrackLane({
       const rect = laneRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left + scrollLeft;
       const time = Math.max(0, x / pxPerSecond);
-      onDropMedia(data, time);
+      
+      // Check if dropping on a clip (to add effect) or on empty space
+      const targetClip = clips.find((clip) => {
+        const clipLeft = clip.startTime * pxPerSecond;
+        const clipRight = (clip.startTime + clip.duration) * pxPerSecond;
+        return x >= clipLeft && x <= clipRight;
+      });
+
+      if (targetClip && (data.type === "visualizer" || data.visualizationType)) {
+        // Drop effect on clip
+        onDropEffectOnClip(targetClip.id, data);
+      } else {
+        // Normal drop to create new clip
+        onDropMedia(data, time);
+      }
     } catch (err) {
       console.error("Drop failed:", err);
     }
   };
 
+  const totalHeight = showEffectLane ? track.height + effectLaneHeight : track.height;
+
   return (
     <div
       ref={laneRef}
       className={`relative border-b ${track.locked ? "opacity-50" : ""} ${isDragOver ? "bg-primary/10" : ""}`}
-      style={{ height: track.height }}
+      style={{ height: totalHeight }}
       onDoubleClick={handleDoubleClick}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       data-testid={`track-lane-${track.id}`}
     >
-      <div
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-        style={{ left: playhead * pxPerSecond }}
-      />
-      {clips.map((clip) => (
-        <ClipComponent
-          key={clip.id}
-          clip={clip}
-          zoom={zoom}
-          isSelected={clip.id === selectedClipId}
-          isLocked={track.locked}
-          onSelect={() => onSelectClip(clip.id)}
-          onMove={(delta) => onMoveClip(clip.id, delta)}
-          onResize={(dur, trimStart) => onResizeClip(clip.id, dur, trimStart)}
+      {/* Main track area */}
+      <div className="relative" style={{ height: track.height }}>
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+          style={{ left: playhead * pxPerSecond }}
         />
-      ))}
+        {clips.map((clip) => (
+          <ClipComponent
+            key={clip.id}
+            clip={clip}
+            zoom={zoom}
+            isSelected={clip.id === selectedClipId}
+            isLocked={track.locked}
+            onSelect={() => onSelectClip(clip.id)}
+            onMove={(delta) => onMoveClip(clip.id, delta)}
+            onResize={(dur, trimStart) => onResizeClip(clip.id, dur, trimStart)}
+          />
+        ))}
+      </div>
+      
+      {/* Effect sub-lane for selected clip */}
+      {showEffectLane && selectedClip && (
+        <div 
+          className="relative bg-muted/30 border-t border-dashed border-primary/30"
+          style={{ height: effectLaneHeight }}
+        >
+          <div className="absolute left-0 top-0 bottom-0 flex items-center px-1 text-[9px] text-muted-foreground z-20 bg-background/80">
+            <Layers className="w-3 h-3 mr-1" />
+            FX
+          </div>
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-red-500/50 z-10"
+            style={{ left: playhead * pxPerSecond }}
+          />
+          {(selectedClip.effects || []).map((effect) => (
+            <EffectBar
+              key={effect.id}
+              effect={effect}
+              clipStartTime={selectedClip.startTime}
+              clipDuration={selectedClip.duration}
+              zoom={zoom}
+              onToggle={() => onToggleEffect(selectedClip.id, effect.id)}
+              onRemove={() => onRemoveEffect(selectedClip.id, effect.id)}
+            />
+          ))}
+          {(selectedClip.effects || []).length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground/50 pl-8">
+              Drop visual overlays here to add effects
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1251,6 +1369,9 @@ export default function Editor() {
     canUndo,
     canRedo,
     cleanup,
+    addEffectToClip,
+    removeEffectFromClip,
+    toggleEffectEnabled,
   } = useTimelineState();
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
@@ -1358,6 +1479,28 @@ export default function Editor() {
       ...data.clipSettings,
     });
   }, [state.tracks, addClip, addClipWithAutoTrack]);
+
+  const handleDropEffectOnClip = useCallback((clipId: string, effectData: unknown) => {
+    const data = effectData as { 
+      type?: ClipType; 
+      name: string; 
+      visualizationType?: string;
+      clipSettings?: Record<string, unknown>;
+    };
+    
+    if (!data.name || !data.visualizationType) return;
+    
+    addEffectToClip(clipId, {
+      type: "visualizer",
+      name: data.name,
+      enabled: true,
+      visualizationType: data.visualizationType as VisualizationType,
+      colorScheme: "neon",
+      startOffset: 0,
+      duration: 0, // 0 means full clip duration
+      settings: data.clipSettings,
+    });
+  }, [addEffectToClip]);
 
   const selectedClip = state.clips.find((c) => c.id === state.selectedClipId);
 
@@ -1607,6 +1750,9 @@ export default function Editor() {
                       onResizeClip={resizeClip}
                       onAddClip={(startTime) => handleAddClipToTrack(track.id, startTime)}
                       onDropMedia={(data, startTime) => handleDropMedia(track.id, data, startTime)}
+                      onDropEffectOnClip={handleDropEffectOnClip}
+                      onToggleEffect={toggleEffectEnabled}
+                      onRemoveEffect={removeEffectFromClip}
                       scrollLeft={timelineScrollLeft}
                     />
                   ))}
