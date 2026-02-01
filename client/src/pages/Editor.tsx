@@ -70,6 +70,7 @@ function PreviewPanel({
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const activeClipIds = useRef<Set<string>>(new Set());
+  const wasPlayingRef = useRef(false);
   
   const activeClips = clips.filter(
     (clip) => playhead >= clip.startTime && playhead < clip.startTime + clip.duration
@@ -80,39 +81,12 @@ function PreviewPanel({
     return track?.muted || false;
   }, [tracks]);
 
+  // Handle play/pause state changes
   useEffect(() => {
-    const currentActiveIds = new Set(activeClips.map(c => c.id));
-    const allClipIds = new Set(clips.map(c => c.id));
-    
-    // Clean up video refs
-    videoRefs.current.forEach((videoEl, clipId) => {
-      if (!allClipIds.has(clipId)) {
-        videoEl.pause();
-        videoEl.src = "";
-        videoRefs.current.delete(clipId);
-      } else if (!currentActiveIds.has(clipId) && activeClipIds.current.has(clipId)) {
-        videoEl.pause();
-        videoEl.currentTime = 0;
-      }
-    });
-    
-    // Clean up audio refs
-    audioRefs.current.forEach((audioEl, clipId) => {
-      if (!allClipIds.has(clipId)) {
-        audioEl.pause();
-        audioEl.src = "";
-        if (audioEl.parentNode) {
-          audioEl.parentNode.removeChild(audioEl);
-        }
-        audioRefs.current.delete(clipId);
-      } else if (!currentActiveIds.has(clipId) && activeClipIds.current.has(clipId)) {
-        audioEl.pause();
-        audioEl.currentTime = 0;
-      }
-    });
-    
-    activeClipIds.current = currentActiveIds;
-    
+    const justStartedPlaying = isPlaying && !wasPlayingRef.current;
+    const justPaused = !isPlaying && wasPlayingRef.current;
+    wasPlayingRef.current = isPlaying;
+
     activeClips.forEach((clip) => {
       const clipTime = playhead - clip.startTime;
       const speed = clip.speed || 1;
@@ -123,10 +97,8 @@ function PreviewPanel({
       if (clip.mediaUrl && clip.type === "video") {
         const videoEl = videoRefs.current.get(clip.id);
         if (videoEl) {
-          // Only seek when paused or significantly out of sync (>0.5s)
-          // This prevents stuttering during normal playback
-          const syncThreshold = isPlaying ? 0.5 : 0.05;
-          if (Math.abs(videoEl.currentTime - targetTime) > syncThreshold) {
+          // Only sync when starting playback or when paused
+          if (justStartedPlaying || !isPlaying) {
             videoEl.currentTime = Math.max(0, targetTime);
           }
           
@@ -139,7 +111,7 @@ function PreviewPanel({
         }
       }
       
-      // Handle audio clips with mediaUrl (extracted from video or standalone audio)
+      // Handle audio clips
       if (clip.mediaUrl && clip.type === "audio") {
         let audioEl = audioRefs.current.get(clip.id);
         if (!audioEl) {
@@ -151,13 +123,11 @@ function PreviewPanel({
           audioRefs.current.set(clip.id, audioEl);
         }
         
-        // Only seek when paused or significantly out of sync
-        const syncThreshold = isPlaying ? 0.5 : 0.05;
-        if (Math.abs(audioEl.currentTime - targetTime) > syncThreshold) {
+        // Only sync when starting playback or when paused
+        if (justStartedPlaying || !isPlaying) {
           audioEl.currentTime = Math.max(0, targetTime);
         }
         
-        // Check if track is muted
         const trackMuted = isTrackMuted(clip.trackId);
         const volume = trackMuted ? 0 : (clip.volume !== undefined ? clip.volume / 100 : 1);
         audioEl.volume = Math.max(0, Math.min(1, volume));
@@ -170,7 +140,38 @@ function PreviewPanel({
         }
       }
     });
-  }, [playhead, isPlaying, activeClips, clips, isTrackMuted]);
+  }, [isPlaying, activeClips, playhead, isTrackMuted]);
+
+  // Cleanup when clips change or are removed
+  useEffect(() => {
+    const currentActiveIds = new Set(activeClips.map(c => c.id));
+    const allClipIds = new Set(clips.map(c => c.id));
+    
+    videoRefs.current.forEach((videoEl, clipId) => {
+      if (!allClipIds.has(clipId)) {
+        videoEl.pause();
+        videoEl.src = "";
+        videoRefs.current.delete(clipId);
+      } else if (!currentActiveIds.has(clipId) && activeClipIds.current.has(clipId)) {
+        videoEl.pause();
+      }
+    });
+    
+    audioRefs.current.forEach((audioEl, clipId) => {
+      if (!allClipIds.has(clipId)) {
+        audioEl.pause();
+        audioEl.src = "";
+        if (audioEl.parentNode) {
+          audioEl.parentNode.removeChild(audioEl);
+        }
+        audioRefs.current.delete(clipId);
+      } else if (!currentActiveIds.has(clipId) && activeClipIds.current.has(clipId)) {
+        audioEl.pause();
+      }
+    });
+    
+    activeClipIds.current = currentActiveIds;
+  }, [activeClips, clips]);
 
   // Cleanup audio elements on unmount only
   useEffect(() => {
@@ -1264,17 +1265,20 @@ export default function Editor() {
     }
 
     lastTimeRef.current = performance.now();
+    let currentPlayhead = state.playhead;
+    const duration = state.project.duration;
 
     const animate = (time: number) => {
       const delta = (time - lastTimeRef.current) / 1000;
       lastTimeRef.current = time;
       
-      setPlayhead(state.playhead + delta);
+      currentPlayhead += delta;
       
-      if (state.playhead >= state.project.duration) {
-        setPlayhead(0);
+      if (currentPlayhead >= duration) {
+        currentPlayhead = 0;
       }
       
+      setPlayhead(currentPlayhead);
       animationRef.current = requestAnimationFrame(animate);
     };
 
@@ -1285,7 +1289,7 @@ export default function Editor() {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [state.isPlaying, state.playhead, state.project.duration, setPlayhead]);
+  }, [state.isPlaying, state.project.duration, setPlayhead]);
 
   const handleAddClipToTrack = useCallback((trackId: string, startTime: number) => {
     const track = state.tracks.find((t) => t.id === trackId);
