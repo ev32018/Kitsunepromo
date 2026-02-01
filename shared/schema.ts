@@ -179,6 +179,7 @@ export interface TimelineClip {
   visualizerSettings?: VisualizationSettings;
   colorScheme?: ColorScheme;
   visualizationType?: VisualizationType;
+  linkedClipId?: string; // For linking audio extracted from video
   // Editing properties
   volume?: number; // 0-100
   fadeIn?: number; // duration in seconds

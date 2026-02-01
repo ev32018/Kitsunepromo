@@ -499,18 +499,16 @@ export default function Home() {
 
               <Separator className="bg-border/50" />
 
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex-1">
-                  <VisualizationStylePicker
-                    value={visualizationType}
-                    onChange={setVisualizationType}
-                  />
-                </div>
+              <div className="space-y-3">
+                <VisualizationStylePicker
+                  value={visualizationType}
+                  onChange={setVisualizationType}
+                />
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={randomizeSettings}
-                  className="shrink-0"
+                  className="w-full"
                   data-testid="button-randomize"
                 >
                   <Shuffle className="w-4 h-4 mr-2" />

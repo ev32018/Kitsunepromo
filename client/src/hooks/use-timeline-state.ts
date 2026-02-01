@@ -220,12 +220,49 @@ export function useTimelineState() {
         ...options,
       };
 
+      const newClips = [newClip];
+      
+      // Auto-extract audio track when adding video with media
+      if (type === "video" && options?.mediaUrl) {
+        let audioTrack = newTracks.find((t) => t.type === "audio");
+        if (!audioTrack) {
+          const audioTrackCount = newTracks.filter((t) => t.type === "audio").length + 1;
+          audioTrack = {
+            id: generateId(),
+            name: `Audio ${audioTrackCount}`,
+            type: "audio" as TrackType,
+            muted: false,
+            locked: false,
+            height: 40,
+            order: newTracks.length,
+          };
+          newTracks = [...newTracks, audioTrack];
+        }
+        
+        if (!audioTrack.locked) {
+          const audioClip: TimelineClip = {
+            id: generateId(),
+            trackId: audioTrack.id,
+            type: "audio",
+            name: `${name || "Video"} (Audio)`,
+            startTime,
+            duration,
+            trimIn: 0,
+            trimOut: 0,
+            color: trackColors.audio,
+            mediaUrl: options.mediaUrl,
+            linkedClipId: newClip.id,
+          };
+          newClips.push(audioClip);
+        }
+      }
+
       const newDuration = Math.max(prev.project.duration, startTime + duration + 10);
       
       const newState = {
         ...prev,
         tracks: newTracks,
-        clips: [...prev.clips, newClip],
+        clips: [...prev.clips, ...newClips],
         project: { ...prev.project, duration: newDuration },
       };
       saveToHistory(newState);
@@ -235,10 +272,16 @@ export function useTimelineState() {
 
   const removeClip = useCallback((clipId: string) => {
     setState((prev) => {
+      // Also remove any clips linked to this clip (e.g., audio extracted from video)
+      const linkedClipIds = prev.clips
+        .filter((c) => c.linkedClipId === clipId)
+        .map((c) => c.id);
+      const idsToRemove = new Set([clipId, ...linkedClipIds]);
+      
       const newState = {
         ...prev,
-        clips: prev.clips.filter((c) => c.id !== clipId),
-        selectedClipId: prev.selectedClipId === clipId ? null : prev.selectedClipId,
+        clips: prev.clips.filter((c) => !idsToRemove.has(c.id)),
+        selectedClipId: idsToRemove.has(prev.selectedClipId || "") ? null : prev.selectedClipId,
       };
       saveToHistory(newState);
       return newState;
@@ -254,11 +297,16 @@ export function useTimelineState() {
       
       const newState = {
         ...prev,
-        clips: prev.clips.map((c) =>
-          c.id === clipId
-            ? { ...c, startTime: Math.max(0, newStartTime), trackId: newTrackId || c.trackId }
-            : c
-        ),
+        clips: prev.clips.map((c) => {
+          if (c.id === clipId) {
+            return { ...c, startTime: Math.max(0, newStartTime), trackId: newTrackId || c.trackId };
+          }
+          // Also move linked clips (e.g., audio extracted from video)
+          if (c.linkedClipId === clipId) {
+            return { ...c, startTime: Math.max(0, newStartTime) };
+          }
+          return c;
+        }),
       };
       saveToHistory(newState);
       return newState;
@@ -272,20 +320,35 @@ export function useTimelineState() {
       const track = prev.tracks.find((t) => t.id === clip.trackId);
       if (track?.locked) return prev;
       
+      const delta = clip.duration - newDuration;
+      
       const newState = {
         ...prev,
         clips: prev.clips.map((c) => {
-          if (c.id !== clipId) return c;
-          if (trimStart) {
-            const delta = c.duration - newDuration;
-            return {
-              ...c,
-              startTime: c.startTime + delta,
-              duration: Math.max(0.5, newDuration),
-              trimIn: c.trimIn + delta,
-            };
+          if (c.id === clipId) {
+            if (trimStart) {
+              return {
+                ...c,
+                startTime: c.startTime + delta,
+                duration: Math.max(0.5, newDuration),
+                trimIn: c.trimIn + delta,
+              };
+            }
+            return { ...c, duration: Math.max(0.5, newDuration) };
           }
-          return { ...c, duration: Math.max(0.5, newDuration) };
+          // Also resize linked clips
+          if (c.linkedClipId === clipId) {
+            if (trimStart) {
+              return {
+                ...c,
+                startTime: c.startTime + delta,
+                duration: Math.max(0.5, newDuration),
+                trimIn: c.trimIn + delta,
+              };
+            }
+            return { ...c, duration: Math.max(0.5, newDuration) };
+          }
+          return c;
         }),
       };
       saveToHistory(newState);

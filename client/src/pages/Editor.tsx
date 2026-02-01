@@ -59,23 +59,32 @@ function PreviewPanel({
   isPlaying, 
   duration,
   clips,
+  tracks,
 }: { 
   playhead: number; 
   isPlaying: boolean;
   duration: number;
   clips: TimelineClip[];
+  tracks: TimelineTrack[];
 }) {
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const activeClipIds = useRef<Set<string>>(new Set());
   
   const activeClips = clips.filter(
     (clip) => playhead >= clip.startTime && playhead < clip.startTime + clip.duration
   );
+  
+  const isTrackMuted = useCallback((trackId: string) => {
+    const track = tracks.find(t => t.id === trackId);
+    return track?.muted || false;
+  }, [tracks]);
 
   useEffect(() => {
     const currentActiveIds = new Set(activeClips.map(c => c.id));
     const allClipIds = new Set(clips.map(c => c.id));
     
+    // Clean up video refs
     videoRefs.current.forEach((videoEl, clipId) => {
       if (!allClipIds.has(clipId)) {
         videoEl.pause();
@@ -87,17 +96,33 @@ function PreviewPanel({
       }
     });
     
+    // Clean up audio refs
+    audioRefs.current.forEach((audioEl, clipId) => {
+      if (!allClipIds.has(clipId)) {
+        audioEl.pause();
+        audioEl.src = "";
+        if (audioEl.parentNode) {
+          audioEl.parentNode.removeChild(audioEl);
+        }
+        audioRefs.current.delete(clipId);
+      } else if (!currentActiveIds.has(clipId) && activeClipIds.current.has(clipId)) {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+      }
+    });
+    
     activeClipIds.current = currentActiveIds;
     
     activeClips.forEach((clip) => {
+      const clipTime = playhead - clip.startTime;
+      const speed = clip.speed || 1;
+      const trimOffset = clip.trimIn || 0;
+      const targetTime = (clipTime * speed) + trimOffset;
+      
+      // Handle video clips
       if (clip.mediaUrl && clip.type === "video") {
         const videoEl = videoRefs.current.get(clip.id);
         if (videoEl) {
-          const clipTime = playhead - clip.startTime;
-          const speed = clip.speed || 1;
-          const trimOffset = clip.trimIn || 0;
-          const targetTime = (clipTime * speed) + trimOffset;
-          
           if (Math.abs(videoEl.currentTime - targetTime) > 0.1) {
             videoEl.currentTime = Math.max(0, targetTime);
           }
@@ -110,8 +135,47 @@ function PreviewPanel({
           }
         }
       }
+      
+      // Handle audio clips with mediaUrl (extracted from video or standalone audio)
+      if (clip.mediaUrl && clip.type === "audio") {
+        let audioEl = audioRefs.current.get(clip.id);
+        if (!audioEl) {
+          audioEl = document.createElement("audio");
+          audioEl.src = clip.mediaUrl;
+          audioEl.style.display = "none";
+          document.body.appendChild(audioEl);
+          audioRefs.current.set(clip.id, audioEl);
+        }
+        
+        if (Math.abs(audioEl.currentTime - targetTime) > 0.1) {
+          audioEl.currentTime = Math.max(0, targetTime);
+        }
+        
+        // Check if track is muted
+        const trackMuted = isTrackMuted(clip.trackId);
+        const volume = trackMuted ? 0 : (clip.volume !== undefined ? clip.volume / 100 : 1);
+        audioEl.volume = Math.max(0, Math.min(1, volume));
+        
+        if (isPlaying && audioEl.paused && !trackMuted) {
+          audioEl.playbackRate = speed;
+          audioEl.play().catch(() => {});
+        } else if ((!isPlaying || trackMuted) && !audioEl.paused) {
+          audioEl.pause();
+        }
+      }
     });
-  }, [playhead, isPlaying, activeClips, clips]);
+    
+    // Cleanup on unmount
+    return () => {
+      audioRefs.current.forEach((audioEl) => {
+        audioEl.pause();
+        audioEl.src = "";
+        if (audioEl.parentNode) {
+          audioEl.parentNode.removeChild(audioEl);
+        }
+      });
+    };
+  }, [playhead, isPlaying, activeClips, clips, isTrackMuted]);
 
   const renderClipPreview = (clip: TimelineClip) => {
     const opacity = clip.opacity !== undefined ? clip.opacity / 100 : 1;
@@ -123,6 +187,7 @@ function PreviewPanel({
     const filterStyle = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px)`;
 
     if (clip.type === "video" && clip.mediaUrl) {
+      // Mute video since audio is handled by the linked audio clip
       return (
         <video
           ref={(el) => {
@@ -752,7 +817,7 @@ function MediaLibrary({
     <div className="p-4 flex flex-col h-full overflow-hidden">
       <div className="mb-4">
         <h3 className="text-sm font-semibold mb-3">Import Media</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={videoInputRef}
             type="file"
@@ -783,7 +848,6 @@ function MediaLibrary({
           <Button
             size="sm"
             variant="outline"
-            className="flex-1"
             onClick={() => videoInputRef.current?.click()}
             data-testid="button-upload-video"
           >
@@ -793,7 +857,6 @@ function MediaLibrary({
           <Button
             size="sm"
             variant="outline"
-            className="flex-1"
             onClick={() => imageInputRef.current?.click()}
             data-testid="button-upload-image"
           >
@@ -803,7 +866,6 @@ function MediaLibrary({
           <Button
             size="sm"
             variant="outline"
-            className="flex-1"
             onClick={() => audioInputRef.current?.click()}
             data-testid="button-upload-audio"
           >
@@ -1396,6 +1458,7 @@ export default function Editor() {
                   isPlaying={state.isPlaying}
                   duration={state.project.duration}
                   clips={state.clips}
+                  tracks={state.tracks}
                 />
               </div>
             </div>

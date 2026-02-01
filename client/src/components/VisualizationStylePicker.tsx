@@ -124,34 +124,34 @@ export function VisualizationStylePicker({
             <Card
               key={type}
               onClick={() => onChange(type)}
-              className={`p-3 cursor-pointer transition-all hover-elevate ${
+              className={`p-2 cursor-pointer transition-all hover-elevate ${
                 isSelected
                   ? "border-primary bg-primary/10 glow-sm"
                   : "border-border/50 bg-card/50"
               }`}
               data-testid={`button-style-${type}`}
             >
-              <div className="flex items-start gap-2">
+              <div className="flex items-center gap-2">
                 <div
-                  className={`p-1.5 rounded-md ${
+                  className={`p-1 rounded-md flex-shrink-0 ${
                     isSelected ? "bg-primary/20" : "bg-muted/50"
                   }`}
                 >
                   <Icon
-                    className={`w-4 h-4 ${
+                    className={`w-3 h-3 ${
                       isSelected ? "text-primary" : "text-muted-foreground"
                     }`}
                   />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <p
-                    className={`text-xs font-medium truncate ${
+                    className={`text-[10px] font-medium leading-tight ${
                       isSelected ? "text-primary" : ""
                     }`}
                   >
                     {meta.label}
                   </p>
-                  <p className="text-[10px] text-muted-foreground truncate">
+                  <p className="text-[9px] text-muted-foreground leading-tight">
                     {meta.description}
                   </p>
                 </div>
