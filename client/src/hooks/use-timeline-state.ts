@@ -293,6 +293,62 @@ export function useTimelineState() {
     });
   }, [saveToHistory]);
 
+  const updateClip = useCallback((clipId: string, updates: Partial<TimelineClip>) => {
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId ? { ...c, ...updates } : c
+        ),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const splitClip = useCallback((clipId: string, splitTime: number) => {
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      // splitTime is relative to the project timeline
+      const clipEndTime = clip.startTime + clip.duration;
+      if (splitTime <= clip.startTime || splitTime >= clipEndTime) return prev;
+      
+      const relativeTime = splitTime - clip.startTime;
+      const firstDuration = relativeTime;
+      const secondDuration = clip.duration - relativeTime;
+      
+      const firstClip: TimelineClip = {
+        ...clip,
+        duration: firstDuration,
+      };
+      
+      const secondClip: TimelineClip = {
+        ...clip,
+        id: generateId(),
+        startTime: splitTime,
+        duration: secondDuration,
+        trimIn: clip.trimIn + relativeTime,
+        name: `${clip.name} (2)`,
+      };
+      
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) => (c.id === clipId ? firstClip : c)).concat(secondClip),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
   const selectClip = useCallback((clipId: string | null) => {
     setState((prev) => ({ ...prev, selectedClipId: clipId }));
   }, []);
@@ -396,6 +452,8 @@ export function useTimelineState() {
     removeClip,
     moveClip,
     resizeClip,
+    updateClip,
+    splitClip,
     selectClip,
     selectTrack,
     setPlayhead,

@@ -179,6 +179,23 @@ export interface TimelineClip {
   visualizerSettings?: VisualizationSettings;
   colorScheme?: ColorScheme;
   visualizationType?: VisualizationType;
+  // Editing properties
+  volume?: number; // 0-100
+  fadeIn?: number; // duration in seconds
+  fadeOut?: number; // duration in seconds
+  opacity?: number; // 0-100
+  speed?: number; // playback speed multiplier
+  filters?: ClipFilters;
+}
+
+export interface ClipFilters {
+  brightness?: number; // -100 to 100
+  contrast?: number; // -100 to 100
+  saturation?: number; // -100 to 100
+  blur?: number; // 0-20
+  grayscale?: boolean;
+  sepia?: boolean;
+  invert?: boolean;
 }
 
 export interface TimelineState {

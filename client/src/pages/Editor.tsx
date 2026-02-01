@@ -29,7 +29,13 @@ import {
   FileAudio,
   X,
   Undo2,
-  Redo2
+  Redo2,
+  Scissors,
+  Sun,
+  Contrast,
+  Droplet,
+  Eye,
+  Settings2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -385,8 +391,8 @@ function ClipComponent({
 
   return (
     <div
-      className={`absolute top-1 bottom-1 rounded cursor-move select-none ${
-        isSelected ? "ring-2 ring-primary" : ""
+      className={`absolute top-1 bottom-1 rounded cursor-move select-none z-10 ${
+        isSelected ? "ring-2 ring-primary z-20" : ""
       }`}
       style={{
         left,
@@ -394,6 +400,10 @@ function ClipComponent({
         backgroundColor: clip.color,
       }}
       onMouseDown={handleMouseDown}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
       data-testid={`clip-${clip.id}`}
     >
       <div
@@ -421,6 +431,8 @@ function TrackLane({
   onMoveClip,
   onResizeClip,
   onAddClip,
+  onDropMedia,
+  scrollLeft = 0,
 }: {
   track: TimelineTrack;
   clips: TimelineClip[];
@@ -431,25 +443,58 @@ function TrackLane({
   onMoveClip: (id: string, deltaTime: number) => void;
   onResizeClip: (id: string, newDuration: number, trimStart: boolean) => void;
   onAddClip: (startTime: number) => void;
+  onDropMedia: (data: { type: ClipType; name: string; visualizationType?: string; mediaUrl?: string }, startTime: number) => void;
+  scrollLeft?: number;
 }) {
   const pxPerSecond = 50 * zoom;
   const laneRef = useRef<HTMLDivElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (track.locked) return;
     if (!laneRef.current) return;
     const rect = laneRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const x = e.clientX - rect.left + scrollLeft;
     const time = x / pxPerSecond;
     onAddClip(Math.max(0, time));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (track.locked) return;
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (track.locked) return;
+    if (!laneRef.current) return;
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      const rect = laneRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left + scrollLeft;
+      const time = Math.max(0, x / pxPerSecond);
+      onDropMedia(data, time);
+    } catch (err) {
+      console.error("Drop failed:", err);
+    }
   };
 
   return (
     <div
       ref={laneRef}
-      className={`relative border-b ${track.locked ? "opacity-50" : ""}`}
+      className={`relative border-b ${track.locked ? "opacity-50" : ""} ${isDragOver ? "bg-primary/10" : ""}`}
       style={{ height: track.height }}
       onDoubleClick={handleDoubleClick}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       data-testid={`track-lane-${track.id}`}
     >
       <div
@@ -654,6 +699,225 @@ function MediaLibrary({
   );
 }
 
+function ClipPropertiesPanel({
+  clip,
+  onUpdate,
+  onSplit,
+  onDelete,
+  playhead,
+}: {
+  clip: TimelineClip;
+  onUpdate: (updates: Partial<TimelineClip>) => void;
+  onSplit: () => void;
+  onDelete: () => void;
+  playhead: number;
+}) {
+  const canSplit = playhead > clip.startTime && playhead < clip.startTime + clip.duration;
+
+  return (
+    <div className="p-4 space-y-4 border-l bg-card" data-testid="clip-properties-panel">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Clip Properties</h3>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="w-6 h-6"
+          onClick={onDelete}
+          data-testid="button-delete-clip"
+        >
+          <Trash2 className="w-3 h-3" />
+        </Button>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">Name</label>
+        <input
+          type="text"
+          value={clip.name}
+          onChange={(e) => onUpdate({ name: e.target.value })}
+          className="w-full px-2 py-1 text-sm bg-muted rounded border-0"
+          data-testid="input-clip-name"
+        />
+      </div>
+
+      <div className="border-t pt-4">
+        <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
+          <Settings2 className="w-3 h-3" /> Edit Tools
+        </h4>
+        <div className="space-y-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full justify-start"
+            onClick={onSplit}
+            disabled={!canSplit}
+            data-testid="button-split-clip"
+          >
+            <Scissors className="w-4 h-4 mr-2" />
+            Split at Playhead
+          </Button>
+        </div>
+      </div>
+
+      {(clip.type === "audio" || clip.type === "video") && (
+        <div className="border-t pt-4">
+          <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
+            <Volume2 className="w-3 h-3" /> Audio
+          </h4>
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-muted-foreground">Volume</label>
+                <span className="text-xs">{clip.volume ?? 100}%</span>
+              </div>
+              <Slider
+                value={[clip.volume ?? 100]}
+                onValueChange={([v]) => onUpdate({ volume: v })}
+                min={0}
+                max={100}
+                step={1}
+                data-testid="slider-volume"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="border-t pt-4">
+        <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
+          <Eye className="w-3 h-3" /> Opacity & Fades
+        </h4>
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Opacity</label>
+              <span className="text-xs">{clip.opacity ?? 100}%</span>
+            </div>
+            <Slider
+              value={[clip.opacity ?? 100]}
+              onValueChange={([v]) => onUpdate({ opacity: v })}
+              min={0}
+              max={100}
+              step={1}
+              data-testid="slider-opacity"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Fade In</label>
+              <span className="text-xs">{(clip.fadeIn ?? 0).toFixed(1)}s</span>
+            </div>
+            <Slider
+              value={[clip.fadeIn ?? 0]}
+              onValueChange={([v]) => onUpdate({ fadeIn: v })}
+              min={0}
+              max={Math.min(5, clip.duration / 2)}
+              step={0.1}
+              data-testid="slider-fade-in"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Fade Out</label>
+              <span className="text-xs">{(clip.fadeOut ?? 0).toFixed(1)}s</span>
+            </div>
+            <Slider
+              value={[clip.fadeOut ?? 0]}
+              onValueChange={([v]) => onUpdate({ fadeOut: v })}
+              min={0}
+              max={Math.min(5, clip.duration / 2)}
+              step={0.1}
+              data-testid="slider-fade-out"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t pt-4">
+        <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
+          <Sun className="w-3 h-3" /> Filters
+        </h4>
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Brightness</label>
+              <span className="text-xs">{clip.filters?.brightness ?? 0}</span>
+            </div>
+            <Slider
+              value={[clip.filters?.brightness ?? 0]}
+              onValueChange={([v]) => onUpdate({ filters: { ...clip.filters, brightness: v } })}
+              min={-100}
+              max={100}
+              step={1}
+              data-testid="slider-brightness"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Contrast</label>
+              <span className="text-xs">{clip.filters?.contrast ?? 0}</span>
+            </div>
+            <Slider
+              value={[clip.filters?.contrast ?? 0]}
+              onValueChange={([v]) => onUpdate({ filters: { ...clip.filters, contrast: v } })}
+              min={-100}
+              max={100}
+              step={1}
+              data-testid="slider-contrast"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Saturation</label>
+              <span className="text-xs">{clip.filters?.saturation ?? 0}</span>
+            </div>
+            <Slider
+              value={[clip.filters?.saturation ?? 0]}
+              onValueChange={([v]) => onUpdate({ filters: { ...clip.filters, saturation: v } })}
+              min={-100}
+              max={100}
+              step={1}
+              data-testid="slider-saturation"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Blur</label>
+              <span className="text-xs">{clip.filters?.blur ?? 0}px</span>
+            </div>
+            <Slider
+              value={[clip.filters?.blur ?? 0]}
+              onValueChange={([v]) => onUpdate({ filters: { ...clip.filters, blur: v } })}
+              min={0}
+              max={20}
+              step={1}
+              data-testid="slider-blur"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t pt-4">
+        <h4 className="text-xs font-semibold mb-3">Speed</h4>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-muted-foreground">Playback Speed</label>
+            <span className="text-xs">{(clip.speed ?? 1).toFixed(2)}x</span>
+          </div>
+          <Slider
+            value={[clip.speed ?? 1]}
+            onValueChange={([v]) => onUpdate({ speed: v })}
+            min={0.25}
+            max={4}
+            step={0.25}
+            data-testid="slider-speed"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type LayoutMode = "split" | "preview" | "timeline";
 
 export default function Editor() {
@@ -666,6 +930,8 @@ export default function Editor() {
     addClip,
     moveClip,
     resizeClip,
+    updateClip,
+    splitClip,
     selectClip,
     setPlayhead,
     setZoom,
@@ -683,6 +949,7 @@ export default function Editor() {
   } = useTimelineState();
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
+  const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
   const timelineRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const lastTimeRef = useRef<number>(0);
@@ -740,6 +1007,18 @@ export default function Editor() {
       mediaUrl,
     });
   }, [state.playhead, addClipWithAutoTrack]);
+
+  const handleDropMedia = useCallback((trackId: string, data: { type: ClipType; name: string; visualizationType?: string; mediaUrl?: string }, startTime: number) => {
+    const track = state.tracks.find((t) => t.id === trackId);
+    if (!track || track.locked) return;
+    
+    addClip(trackId, data.type, startTime, 5, data.name, {
+      visualizationType: data.visualizationType as VisualizationType,
+      mediaUrl: data.mediaUrl,
+    });
+  }, [state.tracks, addClip]);
+
+  const selectedClip = state.clips.find((c) => c.id === state.selectedClipId);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -960,6 +1239,7 @@ export default function Editor() {
               <div 
                 ref={timelineRef}
                 className="flex-1 overflow-auto"
+                onScroll={(e) => setTimelineScrollLeft(e.currentTarget.scrollLeft)}
               >
                 <div style={{ width: totalWidth, minWidth: "100%" }}>
                   <TimelineRuler
@@ -983,6 +1263,8 @@ export default function Editor() {
                       }}
                       onResizeClip={resizeClip}
                       onAddClip={(startTime) => handleAddClipToTrack(track.id, startTime)}
+                      onDropMedia={(data, startTime) => handleDropMedia(track.id, data, startTime)}
+                      scrollLeft={timelineScrollLeft}
                     />
                   ))}
                 </div>
@@ -991,6 +1273,18 @@ export default function Editor() {
           </div>
           )}
         </main>
+
+        {selectedClip && layoutMode !== "preview" && (
+          <aside className="w-72 border-l bg-card overflow-y-auto flex-shrink-0">
+            <ClipPropertiesPanel
+              clip={selectedClip}
+              onUpdate={(updates) => updateClip(selectedClip.id, updates)}
+              onSplit={() => splitClip(selectedClip.id, state.playhead)}
+              onDelete={deleteSelectedClip}
+              playhead={state.playhead}
+            />
+          </aside>
+        )}
       </div>
     </div>
   );
