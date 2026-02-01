@@ -7,7 +7,8 @@ import type {
   TrackType,
   ClipType,
   MediaFile,
-  MediaFileType
+  MediaFileType,
+  ClipEffect
 } from "@shared/schema";
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -544,6 +545,99 @@ export function useTimelineState() {
     });
   }, [state.mediaFiles]);
 
+  // Effect management functions
+  const addEffectToClip = useCallback((clipId: string, effect: Omit<ClipEffect, "id">) => {
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      const newEffect: ClipEffect = {
+        ...effect,
+        id: generateId(),
+      };
+      
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId
+            ? { ...c, effects: [...(c.effects || []), newEffect] }
+            : c
+        ),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const removeEffectFromClip = useCallback((clipId: string, effectId: string) => {
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId
+            ? { ...c, effects: (c.effects || []).filter((e) => e.id !== effectId) }
+            : c
+        ),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const updateClipEffect = useCallback((clipId: string, effectId: string, updates: Partial<ClipEffect>) => {
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId
+            ? {
+                ...c,
+                effects: (c.effects || []).map((e) =>
+                  e.id === effectId ? { ...e, ...updates } : e
+                ),
+              }
+            : c
+        ),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const toggleEffectEnabled = useCallback((clipId: string, effectId: string) => {
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId
+            ? {
+                ...c,
+                effects: (c.effects || []).map((e) =>
+                  e.id === effectId ? { ...e, enabled: !e.enabled } : e
+                ),
+              }
+            : c
+        ),
+      };
+      return newState;
+    });
+  }, []);
+
   return {
     state,
     addTrack,
@@ -573,5 +667,10 @@ export function useTimelineState() {
     canUndo,
     canRedo,
     cleanup,
+    // Effect management
+    addEffectToClip,
+    removeEffectFromClip,
+    updateClipEffect,
+    toggleEffectEnabled,
   };
 }
