@@ -9,6 +9,7 @@ import {
   drawParticleOverlay,
   drawProgressBar,
   drawTextOverlay,
+  drawWatermark,
   getKenBurnsTransform,
   resetKenBurns,
   clearOverlayParticles,
@@ -16,6 +17,7 @@ import {
   type ProgressBarConfig,
   type TextOverlayConfig,
   type KenBurnsConfig,
+  type WatermarkConfig,
 } from "@/lib/visualizers";
 import type { VisualizationType, ColorScheme } from "@shared/schema";
 import type { ImageEffectSettings } from "@/components/ImageEffectsSettings";
@@ -44,6 +46,7 @@ interface VisualizerCanvasProps {
   particleOverlayConfig?: ParticleOverlayConfig;
   textOverlayConfig?: TextOverlayConfig;
   progressBarConfig?: ProgressBarConfig;
+  watermarkConfig?: WatermarkConfig;
 }
 
 export interface VisualizerCanvasHandle {
@@ -75,6 +78,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       particleOverlayConfig,
       textOverlayConfig,
       progressBarConfig,
+      watermarkConfig,
     },
     ref
   ) => {
@@ -280,6 +284,11 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
         drawTextOverlay(ctx, canvas, audioData, textOverlayConfig, time);
       }
 
+      // Draw watermark
+      if (watermarkConfig?.enabled && watermarkConfig?.imageUrl) {
+        drawWatermark(ctx, canvas, watermarkConfig);
+      }
+
       // Draw legacy overlay text (for backward compatibility)
       drawOverlay(ctx, canvas);
 
@@ -302,6 +311,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       particleOverlayConfig,
       textOverlayConfig,
       progressBarConfig,
+      watermarkConfig,
       audioElement,
     ]);
 

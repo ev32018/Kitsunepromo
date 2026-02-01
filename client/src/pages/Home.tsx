@@ -17,6 +17,9 @@ import { ParticleOverlaySettings, defaultParticleOverlayConfig, type ParticleOve
 import { TextOverlaySettings, defaultTextOverlayConfig, type TextOverlayConfig } from "@/components/TextOverlaySettings";
 import { ProgressBarSettings, defaultProgressBarConfig, type ProgressBarConfig } from "@/components/ProgressBarSettings";
 import { TemplateGallery, type Template } from "@/components/TemplateGallery";
+import { AudioTrimmer, defaultTrimConfig, type TrimConfig } from "@/components/AudioTrimmer";
+import { WatermarkSettings, defaultWatermarkConfig, type WatermarkConfig } from "@/components/WatermarkSettings";
+import { PerformanceSettings, defaultPerformanceConfig, type PerformanceConfig } from "@/components/PerformanceSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -53,6 +56,10 @@ export default function Home() {
   const [particleOverlayConfig, setParticleOverlayConfig] = useState<ParticleOverlayConfig>(defaultParticleOverlayConfig);
   const [textOverlayConfig, setTextOverlayConfig] = useState<TextOverlayConfig>(defaultTextOverlayConfig);
   const [progressBarConfig, setProgressBarConfig] = useState<ProgressBarConfig>(defaultProgressBarConfig);
+  const [trimConfig, setTrimConfig] = useState<TrimConfig>(defaultTrimConfig);
+  const [watermarkConfig, setWatermarkConfig] = useState<WatermarkConfig>(defaultWatermarkConfig);
+  const [performanceConfig, setPerformanceConfig] = useState<PerformanceConfig>(defaultPerformanceConfig);
+  const [audioDuration, setAudioDuration] = useState(0);
 
   const visualizerRef = useRef<VisualizerCanvasHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +97,27 @@ export default function Home() {
   const handlePlayStateChange = useCallback((playing: boolean) => {
     setIsPlaying(playing);
   }, []);
+
+  useEffect(() => {
+    if (!audioElement) {
+      setAudioDuration(0);
+      return;
+    }
+    
+    const handleLoadedMetadata = () => {
+      setAudioDuration(audioElement.duration);
+      if (trimConfig.endTime === 0) {
+        setTrimConfig(prev => ({ ...prev, endTime: audioElement.duration }));
+      }
+    };
+    
+    if (audioElement.duration) {
+      handleLoadedMetadata();
+    }
+    
+    audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+    return () => audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+  }, [audioElement]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return;
@@ -399,6 +427,36 @@ export default function Home() {
 
               <Separator className="bg-border/50" />
 
+              <WatermarkSettings
+                config={watermarkConfig}
+                onConfigChange={setWatermarkConfig}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <AudioTrimmer
+                audioElement={audioElement}
+                duration={audioDuration}
+                config={trimConfig}
+                onConfigChange={setTrimConfig}
+                onPreviewTrim={() => {
+                  if (audioElement && trimConfig.enabled) {
+                    audioElement.currentTime = trimConfig.startTime;
+                    audioElement.play();
+                    toast({ title: "Preview", description: "Playing trimmed section" });
+                  }
+                }}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <PerformanceSettings
+                config={performanceConfig}
+                onConfigChange={setPerformanceConfig}
+              />
+
+              <Separator className="bg-border/50" />
+
               <ExportControls
                 canvasRef={visualizerRef}
                 audioElement={audioElement}
@@ -448,6 +506,7 @@ export default function Home() {
                     particleOverlayConfig={particleOverlayConfig}
                     textOverlayConfig={textOverlayConfig}
                     progressBarConfig={progressBarConfig}
+                    watermarkConfig={watermarkConfig}
                   />
                   <Button
                     size="icon"

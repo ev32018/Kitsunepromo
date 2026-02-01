@@ -1882,3 +1882,93 @@ export function resetKenBurns(): void {
 export function clearOverlayParticles(): void {
   overlayParticles = [];
 }
+
+// Watermark rendering
+export interface WatermarkConfig {
+  enabled: boolean;
+  imageUrl: string | null;
+  position: 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  size: number;
+  opacity: number;
+  padding: number;
+}
+
+const watermarkImageCache: Map<string, HTMLImageElement> = new Map();
+
+export function drawWatermark(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  config: WatermarkConfig
+): void {
+  if (!config.enabled || !config.imageUrl) return;
+
+  let img = watermarkImageCache.get(config.imageUrl);
+  if (!img) {
+    img = new window.Image();
+    img.src = config.imageUrl;
+    watermarkImageCache.set(config.imageUrl, img);
+  }
+
+  if (!img.complete) return;
+
+  const { width, height } = canvas;
+  const maxDim = Math.min(width, height) * (config.size / 100);
+  const aspectRatio = img.width / img.height;
+  
+  let drawWidth: number, drawHeight: number;
+  if (aspectRatio > 1) {
+    drawWidth = maxDim;
+    drawHeight = maxDim / aspectRatio;
+  } else {
+    drawHeight = maxDim;
+    drawWidth = maxDim * aspectRatio;
+  }
+
+  let x: number, y: number;
+  const padding = config.padding;
+
+  switch (config.position) {
+    case 'top-left':
+      x = padding;
+      y = padding;
+      break;
+    case 'top-center':
+      x = (width - drawWidth) / 2;
+      y = padding;
+      break;
+    case 'top-right':
+      x = width - drawWidth - padding;
+      y = padding;
+      break;
+    case 'center-left':
+      x = padding;
+      y = (height - drawHeight) / 2;
+      break;
+    case 'center':
+      x = (width - drawWidth) / 2;
+      y = (height - drawHeight) / 2;
+      break;
+    case 'center-right':
+      x = width - drawWidth - padding;
+      y = (height - drawHeight) / 2;
+      break;
+    case 'bottom-left':
+      x = padding;
+      y = height - drawHeight - padding;
+      break;
+    case 'bottom-center':
+      x = (width - drawWidth) / 2;
+      y = height - drawHeight - padding;
+      break;
+    case 'bottom-right':
+    default:
+      x = width - drawWidth - padding;
+      y = height - drawHeight - padding;
+      break;
+  }
+
+  ctx.save();
+  ctx.globalAlpha = config.opacity;
+  ctx.drawImage(img, x, y, drawWidth, drawHeight);
+  ctx.restore();
+}
