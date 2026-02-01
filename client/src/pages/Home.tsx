@@ -16,6 +16,7 @@ import { KenBurnsSettings, defaultKenBurnsConfig, type KenBurnsConfig } from "@/
 import { ParticleOverlaySettings, defaultParticleOverlayConfig, type ParticleOverlayConfig } from "@/components/ParticleOverlaySettings";
 import { TextOverlaySettings, defaultTextOverlayConfig, type TextOverlayConfig } from "@/components/TextOverlaySettings";
 import { ProgressBarSettings, defaultProgressBarConfig, type ProgressBarConfig } from "@/components/ProgressBarSettings";
+import { TemplateGallery, type Template } from "@/components/TemplateGallery";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -195,6 +196,26 @@ export default function Home() {
     toast({ title: "Preset loaded", description: "Visualization settings applied." });
   }, [toast]);
 
+  const applyTemplate = useCallback((template: Template) => {
+    const { config } = template;
+    setVisualizationType(config.visualizationType);
+    setColorScheme(config.colorScheme);
+    if (config.customColors) setCustomColors(config.customColors);
+    setSensitivity(config.sensitivity);
+    setBarCount(config.barCount);
+    setParticleCount(config.particleCount);
+    setGlowIntensity(config.glowIntensity);
+    setRotationSpeed(config.rotationSpeed);
+    setMirrorMode(config.mirrorMode);
+    if (config.aspectRatio) setAspectRatioConfig(config.aspectRatio);
+    if (config.kenBurns) setKenBurnsConfig(config.kenBurns);
+    if (config.blendMode) setBlendModeConfig(config.blendMode);
+    if (config.particleOverlay) setParticleOverlayConfig(config.particleOverlay);
+    if (config.textOverlay) setTextOverlayConfig(prev => ({ ...prev, ...config.textOverlay }));
+    if (config.progressBar) setProgressBarConfig(config.progressBar);
+    toast({ title: "Template applied", description: `"${template.name}" settings loaded.` });
+  }, [toast]);
+
   const getCurrentSettings = useCallback((): VisualizationSettings => ({
     sensitivity,
     smoothing: 0.8,
@@ -264,6 +285,10 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              <Separator className="bg-border/50" />
+
+              <TemplateGallery onApplyTemplate={applyTemplate} />
 
               <Separator className="bg-border/50" />
 

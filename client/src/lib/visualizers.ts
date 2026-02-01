@@ -1703,7 +1703,7 @@ export interface TextOverlayConfig {
   color: string;
   strokeColor: string;
   strokeWidth: number;
-  animation: 'none' | 'pulse' | 'bounce' | 'glow' | 'wave' | 'fade';
+  animation: 'none' | 'pulse' | 'bounce' | 'glow' | 'wave' | 'typewriter' | 'fade';
   audioReactive: boolean;
   opacity: number;
 }
