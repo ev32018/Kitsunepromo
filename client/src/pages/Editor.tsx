@@ -35,7 +35,8 @@ import {
   Contrast,
   Droplet,
   Eye,
-  Settings2
+  Settings2,
+  Zap
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -64,24 +65,131 @@ function PreviewPanel({
   duration: number;
   clips: TimelineClip[];
 }) {
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const activeClipIds = useRef<Set<string>>(new Set());
+  
   const activeClips = clips.filter(
     (clip) => playhead >= clip.startTime && playhead < clip.startTime + clip.duration
   );
 
+  useEffect(() => {
+    const currentActiveIds = new Set(activeClips.map(c => c.id));
+    const allClipIds = new Set(clips.map(c => c.id));
+    
+    videoRefs.current.forEach((videoEl, clipId) => {
+      if (!allClipIds.has(clipId)) {
+        videoEl.pause();
+        videoEl.src = "";
+        videoRefs.current.delete(clipId);
+      } else if (!currentActiveIds.has(clipId) && activeClipIds.current.has(clipId)) {
+        videoEl.pause();
+        videoEl.currentTime = 0;
+      }
+    });
+    
+    activeClipIds.current = currentActiveIds;
+    
+    activeClips.forEach((clip) => {
+      if (clip.mediaUrl && clip.type === "video") {
+        const videoEl = videoRefs.current.get(clip.id);
+        if (videoEl) {
+          const clipTime = playhead - clip.startTime;
+          const speed = clip.speed || 1;
+          const trimOffset = clip.trimIn || 0;
+          const targetTime = (clipTime * speed) + trimOffset;
+          
+          if (Math.abs(videoEl.currentTime - targetTime) > 0.1) {
+            videoEl.currentTime = Math.max(0, targetTime);
+          }
+          
+          if (isPlaying && videoEl.paused) {
+            videoEl.playbackRate = speed;
+            videoEl.play().catch(() => {});
+          } else if (!isPlaying && !videoEl.paused) {
+            videoEl.pause();
+          }
+        }
+      }
+    });
+  }, [playhead, isPlaying, activeClips, clips]);
+
+  const renderClipPreview = (clip: TimelineClip) => {
+    const opacity = clip.opacity !== undefined ? clip.opacity / 100 : 1;
+    const brightness = clip.filters?.brightness !== undefined ? 100 + clip.filters.brightness : 100;
+    const contrast = clip.filters?.contrast !== undefined ? 100 + clip.filters.contrast : 100;
+    const saturation = clip.filters?.saturation !== undefined ? 100 + clip.filters.saturation : 100;
+    const blur = clip.filters?.blur !== undefined ? clip.filters.blur : 0;
+    
+    const filterStyle = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px)`;
+
+    if (clip.type === "video" && clip.mediaUrl) {
+      return (
+        <video
+          ref={(el) => {
+            if (el) videoRefs.current.set(clip.id, el);
+          }}
+          src={clip.mediaUrl}
+          className="absolute inset-0 w-full h-full object-contain"
+          style={{ opacity, filter: filterStyle }}
+          muted
+          playsInline
+        />
+      );
+    }
+    
+    if (clip.type === "audio") {
+      return (
+        <div 
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ backgroundColor: clip.color + "30", opacity }}
+        >
+          <div className="text-center">
+            <Music className="w-16 h-16 mx-auto mb-2 text-white/70" />
+            <div className="text-xl font-medium text-white">{clip.name}</div>
+            <div className="text-sm text-gray-400">Audio Track</div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (clip.type === "visualizer") {
+      return (
+        <div 
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ 
+            background: `linear-gradient(135deg, ${clip.color}40 0%, ${clip.color}80 100%)`,
+            opacity 
+          }}
+        >
+          <div className="text-center">
+            <Sparkles className="w-16 h-16 mx-auto mb-2 text-white" />
+            <div className="text-xl font-medium text-white">{clip.name}</div>
+            <div className="text-sm text-gray-300">{clip.visualizationType || "Visualizer"}</div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div 
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ backgroundColor: clip.color + "20", opacity }}
+      >
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">{clip.name}</div>
+          <div className="text-sm text-gray-400">{clip.type}</div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-black rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
       {activeClips.length > 0 ? (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0">
           {activeClips.map((clip) => (
-            <div 
-              key={clip.id} 
-              className="absolute inset-0 flex items-center justify-center"
-              style={{ backgroundColor: clip.color + "20" }}
-            >
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">{clip.name}</div>
-                <div className="text-sm text-gray-400">{clip.type}</div>
-              </div>
+            <div key={clip.id} className="absolute inset-0">
+              {renderClipPreview(clip)}
             </div>
           ))}
         </div>
@@ -443,7 +551,7 @@ function TrackLane({
   onMoveClip: (id: string, deltaTime: number) => void;
   onResizeClip: (id: string, newDuration: number, trimStart: boolean) => void;
   onAddClip: (startTime: number) => void;
-  onDropMedia: (data: { type: ClipType; name: string; visualizationType?: string; mediaUrl?: string }, startTime: number) => void;
+  onDropMedia: (data: { type: ClipType; name: string; visualizationType?: string; mediaUrl?: string; duration?: number; clipSettings?: Record<string, unknown> }, startTime: number) => void;
   scrollLeft?: number;
 }) {
   const pxPerSecond = 50 * zoom;
@@ -519,11 +627,13 @@ function TrackLane({
 
 function MediaLibrary({
   onAddToTimeline,
+  onAddPresetToTimeline,
   mediaFiles,
   onUploadMedia,
   onRemoveMedia,
 }: {
   onAddToTimeline: (type: ClipType, name: string, visualizationType?: string, mediaUrl?: string) => void;
+  onAddPresetToTimeline: (type: ClipType, name: string, visualizationType: string, duration: number, clipSettings?: Record<string, unknown>) => void;
   mediaFiles: MediaFile[];
   onUploadMedia: (file: File, type: MediaFileType) => void;
   onRemoveMedia: (id: string) => void;
@@ -538,6 +648,81 @@ function MediaLibrary({
     visualizationType: vt,
     icon: Sparkles,
   }));
+
+  const socialMediaPresets = [
+    {
+      id: "tiktok-drop",
+      name: "TikTok Drop",
+      description: "High energy beat drop with flash",
+      category: "TikTok",
+      visualizationType: "radialBurst" as const,
+      duration: 3,
+      clipSettings: { filters: { brightness: 20, contrast: 15, saturation: 20 } },
+    },
+    {
+      id: "tiktok-transition",
+      name: "Quick Cut",
+      description: "Fast cuts popular on TikTok",
+      category: "TikTok", 
+      visualizationType: "bars" as const,
+      duration: 0.5,
+      clipSettings: { speed: 2 },
+    },
+    {
+      id: "tiktok-text-pop",
+      name: "Text Pop",
+      description: "Animated text reveal effect",
+      category: "TikTok",
+      visualizationType: "equalizer" as const,
+      duration: 1,
+      clipSettings: { filters: { brightness: 10 } },
+    },
+    {
+      id: "reels-zoom-pulse",
+      name: "Zoom Pulse",
+      description: "Pulsing zoom synced to beat",
+      category: "Reels",
+      visualizationType: "circular" as const,
+      duration: 2,
+      clipSettings: { filters: { saturation: 30 } },
+    },
+    {
+      id: "reels-color-flash",
+      name: "Color Flash",
+      description: "Quick color overlay flashes",
+      category: "Reels",
+      visualizationType: "particles" as const,
+      duration: 0.5,
+      clipSettings: { filters: { brightness: 30, saturation: 40 } },
+    },
+    {
+      id: "reels-slow-mo",
+      name: "Slow Motion",
+      description: "Dramatic slow-mo effect",
+      category: "Reels",
+      visualizationType: "fluid" as const,
+      duration: 4,
+      clipSettings: { speed: 0.5 },
+    },
+    {
+      id: "viral-hook",
+      name: "Viral Hook",
+      description: "Attention-grabbing opener",
+      category: "Viral",
+      visualizationType: "spectrumAnalyzer" as const,
+      duration: 2,
+      clipSettings: { filters: { brightness: 25, contrast: 20 } },
+    },
+    {
+      id: "cta-ending",
+      name: "CTA Ending",
+      description: "Call-to-action ending",
+      category: "Viral",
+      visualizationType: "audioBars" as const,
+      duration: 3,
+      clipSettings: { fadeOut: 1 },
+    },
+  ];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: MediaFileType) => {
     const files = e.target.files;
@@ -675,24 +860,64 @@ function MediaLibrary({
         </div>
       )}
 
-      <div className="border-t pt-4 flex-1 overflow-hidden flex flex-col">
-        <h3 className="text-sm font-semibold mb-3">Visualizer Presets</h3>
-        <div className="space-y-1 flex-1 overflow-y-auto">
-          {visualizerPresets.map((item, i) => (
-            <div
-              key={item.visualizationType}
-              className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("application/json", JSON.stringify(item));
-              }}
-              onDoubleClick={() => onAddToTimeline(item.type, item.name, item.visualizationType)}
-              data-testid={`media-item-${i}`}
-            >
-              <item.icon className="w-4 h-4 text-primary" />
-              <span className="text-sm truncate">{item.name}</span>
+      <div className="border-t pt-4 flex-1 overflow-hidden flex flex-col min-h-0">
+        <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+          <div>
+            <h3 className="text-sm font-semibold mb-2 text-primary flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              TikTok & Reels Presets
+            </h3>
+            <div className="space-y-1">
+              {socialMediaPresets.map((preset) => (
+                <div
+                  key={preset.id}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover-elevate cursor-pointer border border-border"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/json", JSON.stringify({
+                      type: "visualizer",
+                      name: preset.name,
+                      visualizationType: preset.visualizationType,
+                      duration: preset.duration,
+                      clipSettings: preset.clipSettings,
+                    }));
+                  }}
+                  onDoubleClick={() => onAddPresetToTimeline("visualizer", preset.name, preset.visualizationType, preset.duration, preset.clipSettings)}
+                  data-testid={`social-preset-${preset.id}`}
+                >
+                  <Zap className="w-4 h-4 text-primary flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium truncate">{preset.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">{preset.category}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate">{preset.description}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold mb-2">Visualizer Presets</h3>
+            <div className="space-y-1">
+              {visualizerPresets.map((item, i) => (
+                <div
+                  key={item.visualizationType}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/json", JSON.stringify(item));
+                  }}
+                  onDoubleClick={() => onAddToTimeline(item.type, item.name, item.visualizationType)}
+                  data-testid={`media-item-${i}`}
+                >
+                  <item.icon className="w-4 h-4 text-primary" />
+                  <span className="text-sm truncate">{item.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1008,13 +1233,29 @@ export default function Editor() {
     });
   }, [state.playhead, addClipWithAutoTrack]);
 
-  const handleDropMedia = useCallback((trackId: string, data: { type: ClipType; name: string; visualizationType?: string; mediaUrl?: string }, startTime: number) => {
+  const handleAddPresetToTimeline = useCallback((type: ClipType, name: string, visualizationType: string, duration: number, clipSettings?: Record<string, unknown>) => {
+    addClipWithAutoTrack(type, state.playhead, duration, name, {
+      visualizationType: visualizationType as VisualizationType,
+      ...clipSettings,
+    });
+  }, [state.playhead, addClipWithAutoTrack]);
+
+  const handleDropMedia = useCallback((trackId: string, data: { 
+    type: ClipType; 
+    name: string; 
+    visualizationType?: string; 
+    mediaUrl?: string;
+    duration?: number;
+    clipSettings?: { filters?: { brightness?: number; contrast?: number; saturation?: number; blur?: number }; speed?: number; fadeOut?: number };
+  }, startTime: number) => {
     const track = state.tracks.find((t) => t.id === trackId);
     if (!track || track.locked) return;
     
-    addClip(trackId, data.type, startTime, 5, data.name, {
+    const clipDuration = data.duration || 5;
+    addClip(trackId, data.type, startTime, clipDuration, data.name, {
       visualizationType: data.visualizationType as VisualizationType,
       mediaUrl: data.mediaUrl,
+      ...data.clipSettings,
     });
   }, [state.tracks, addClip]);
 
@@ -1135,9 +1376,10 @@ export default function Editor() {
 
       <div className="flex-1 flex overflow-hidden min-h-0">
         {layoutMode !== "preview" && (
-          <aside className="w-64 border-r bg-card overflow-y-auto flex-shrink-0">
+          <aside className="w-64 border-r bg-card flex-shrink-0 flex flex-col overflow-hidden">
             <MediaLibrary 
               onAddToTimeline={handleAddMediaToTimeline}
+              onAddPresetToTimeline={handleAddPresetToTimeline}
               mediaFiles={state.mediaFiles}
               onUploadMedia={addMediaFile}
               onRemoveMedia={removeMediaFile}

@@ -371,9 +371,9 @@ export default function Home() {
         <aside className={`
           fixed lg:relative z-50 lg:z-auto
           w-80 max-w-[85vw] lg:w-80
-          h-full lg:h-auto
+          h-full
           border-r border-border/50 bg-card/95 lg:bg-card/30 backdrop-blur-sm 
-          flex flex-col
+          flex flex-col overflow-hidden
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:hidden'}
         `}>
@@ -436,8 +436,8 @@ export default function Home() {
             )}
           </div>
 
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-6">
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-4 space-y-6">
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Music className="w-3 h-3" />
