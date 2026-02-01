@@ -131,3 +131,52 @@ export const colorSchemes = [
 ] as const;
 
 export type ColorScheme = typeof colorSchemes[number];
+
+// Timeline Editor Types
+export type TrackType = "video" | "audio" | "visualizer";
+export type ClipType = "video" | "audio" | "visualizer" | "image";
+
+export interface TimelineProject {
+  id: string;
+  name: string;
+  duration: number;
+  fps: number;
+  resolution: { width: number; height: number };
+}
+
+export interface TimelineTrack {
+  id: string;
+  name: string;
+  type: TrackType;
+  muted: boolean;
+  locked: boolean;
+  height: number;
+  order: number;
+}
+
+export interface TimelineClip {
+  id: string;
+  trackId: string;
+  type: ClipType;
+  name: string;
+  startTime: number;
+  duration: number;
+  sourceId?: string;
+  trimIn: number;
+  trimOut: number;
+  color: string;
+  visualizerSettings?: VisualizationSettings;
+  colorScheme?: ColorScheme;
+  visualizationType?: VisualizationType;
+}
+
+export interface TimelineState {
+  project: TimelineProject;
+  tracks: TimelineTrack[];
+  clips: TimelineClip[];
+  playhead: number;
+  zoom: number;
+  isPlaying: boolean;
+  selectedClipId: string | null;
+  selectedTrackId: string | null;
+}
