@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, X, Image as ImageIcon, Eye, EyeOff } from "lucide-react";
 
 export interface ImageEffectSettings {
   enabled: boolean;
+  hideVisualization: boolean;
   pulse: boolean;
   pulseIntensity: number;
   wave: boolean;
@@ -18,6 +20,18 @@ export interface ImageEffectSettings {
   glitchIntensity: number;
   zoom: boolean;
   zoomIntensity: number;
+  blur: boolean;
+  blurIntensity: number;
+  chromatic: boolean;
+  chromaticIntensity: number;
+  rotation: boolean;
+  rotationIntensity: number;
+  mirror: boolean;
+  mirrorMode: 'horizontal' | 'vertical' | 'quad';
+  scanlines: boolean;
+  scanlinesIntensity: number;
+  vignette: boolean;
+  vignetteIntensity: number;
 }
 
 interface ImageEffectsSettingsProps {
@@ -29,6 +43,7 @@ interface ImageEffectsSettingsProps {
 
 export const defaultImageEffects: ImageEffectSettings = {
   enabled: true,
+  hideVisualization: false,
   pulse: true,
   pulseIntensity: 0.5,
   wave: false,
@@ -39,6 +54,18 @@ export const defaultImageEffects: ImageEffectSettings = {
   glitchIntensity: 0.2,
   zoom: false,
   zoomIntensity: 0.3,
+  blur: false,
+  blurIntensity: 0.3,
+  chromatic: false,
+  chromaticIntensity: 0.4,
+  rotation: false,
+  rotationIntensity: 0.3,
+  mirror: false,
+  mirrorMode: 'horizontal',
+  scanlines: false,
+  scanlinesIntensity: 0.3,
+  vignette: false,
+  vignetteIntensity: 0.5,
 };
 
 export function ImageEffectsSettings({
@@ -76,7 +103,7 @@ export function ImageEffectsSettings({
     setIsDragging(false);
   };
 
-  const updateEffect = (key: keyof ImageEffectSettings, value: boolean | number) => {
+  const updateEffect = (key: keyof ImageEffectSettings, value: boolean | number | string) => {
     onEffectsChange({ ...effects, [key]: value });
   };
 
@@ -148,6 +175,22 @@ export function ImageEffectsSettings({
 
           {effects.enabled && (
             <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between p-2 rounded-md bg-muted/50">
+                <div className="flex items-center gap-2">
+                  {effects.hideVisualization ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <Label className="text-xs">Hide Visualization</Label>
+                </div>
+                <Switch
+                  checked={effects.hideVisualization}
+                  onCheckedChange={(v) => updateEffect("hideVisualization", v)}
+                  data-testid="switch-hide-visualization"
+                />
+              </div>
+
+              <div className="border-t border-border/50 pt-3">
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Transform Effects</Label>
+              </div>
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Pulse (Bass)</Label>
@@ -167,6 +210,78 @@ export function ImageEffectsSettings({
                     data-testid="slider-pulse-intensity"
                   />
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Zoom Pulse</Label>
+                  <Switch
+                    checked={effects.zoom}
+                    onCheckedChange={(v) => updateEffect("zoom", v)}
+                    data-testid="switch-zoom"
+                  />
+                </div>
+                {effects.zoom && (
+                  <Slider
+                    value={[effects.zoomIntensity]}
+                    onValueChange={([v]) => updateEffect("zoomIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-zoom-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Rotation</Label>
+                  <Switch
+                    checked={effects.rotation}
+                    onCheckedChange={(v) => updateEffect("rotation", v)}
+                    data-testid="switch-rotation"
+                  />
+                </div>
+                {effects.rotation && (
+                  <Slider
+                    value={[effects.rotationIntensity]}
+                    onValueChange={([v]) => updateEffect("rotationIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-rotation-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Mirror</Label>
+                  <Switch
+                    checked={effects.mirror}
+                    onCheckedChange={(v) => updateEffect("mirror", v)}
+                    data-testid="switch-mirror"
+                  />
+                </div>
+                {effects.mirror && (
+                  <Select
+                    value={effects.mirrorMode}
+                    onValueChange={(v) => updateEffect("mirrorMode", v as 'horizontal' | 'vertical' | 'quad')}
+                  >
+                    <SelectTrigger className="h-8" data-testid="select-mirror-mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="horizontal">Horizontal</SelectItem>
+                      <SelectItem value="vertical">Vertical</SelectItem>
+                      <SelectItem value="quad">Quad (4-way)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="border-t border-border/50 pt-3">
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Distortion Effects</Label>
               </div>
 
               <div className="space-y-2">
@@ -192,6 +307,52 @@ export function ImageEffectsSettings({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
+                  <Label className="text-xs">Glitch</Label>
+                  <Switch
+                    checked={effects.glitch}
+                    onCheckedChange={(v) => updateEffect("glitch", v)}
+                    data-testid="switch-glitch"
+                  />
+                </div>
+                {effects.glitch && (
+                  <Slider
+                    value={[effects.glitchIntensity]}
+                    onValueChange={([v]) => updateEffect("glitchIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-glitch-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Blur Pulse</Label>
+                  <Switch
+                    checked={effects.blur}
+                    onCheckedChange={(v) => updateEffect("blur", v)}
+                    data-testid="switch-blur"
+                  />
+                </div>
+                {effects.blur && (
+                  <Slider
+                    value={[effects.blurIntensity]}
+                    onValueChange={([v]) => updateEffect("blurIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-blur-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="border-t border-border/50 pt-3">
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Color Effects</Label>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
                   <Label className="text-xs">Color Shift (Treble)</Label>
                   <Switch
                     checked={effects.colorShift}
@@ -213,42 +374,67 @@ export function ImageEffectsSettings({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Glitch Effect</Label>
+                  <Label className="text-xs">Chromatic Aberration</Label>
                   <Switch
-                    checked={effects.glitch}
-                    onCheckedChange={(v) => updateEffect("glitch", v)}
-                    data-testid="switch-glitch"
+                    checked={effects.chromatic}
+                    onCheckedChange={(v) => updateEffect("chromatic", v)}
+                    data-testid="switch-chromatic"
                   />
                 </div>
-                {effects.glitch && (
+                {effects.chromatic && (
                   <Slider
-                    value={[effects.glitchIntensity]}
-                    onValueChange={([v]) => updateEffect("glitchIntensity", v)}
+                    value={[effects.chromaticIntensity]}
+                    onValueChange={([v]) => updateEffect("chromaticIntensity", v)}
                     min={0.1}
                     max={1}
                     step={0.1}
-                    data-testid="slider-glitch-intensity"
+                    data-testid="slider-chromatic-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="border-t border-border/50 pt-3">
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Overlay Effects</Label>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Scanlines</Label>
+                  <Switch
+                    checked={effects.scanlines}
+                    onCheckedChange={(v) => updateEffect("scanlines", v)}
+                    data-testid="switch-scanlines"
+                  />
+                </div>
+                {effects.scanlines && (
+                  <Slider
+                    value={[effects.scanlinesIntensity]}
+                    onValueChange={([v]) => updateEffect("scanlinesIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-scanlines-intensity"
                   />
                 )}
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Zoom Pulse</Label>
+                  <Label className="text-xs">Vignette</Label>
                   <Switch
-                    checked={effects.zoom}
-                    onCheckedChange={(v) => updateEffect("zoom", v)}
-                    data-testid="switch-zoom"
+                    checked={effects.vignette}
+                    onCheckedChange={(v) => updateEffect("vignette", v)}
+                    data-testid="switch-vignette"
                   />
                 </div>
-                {effects.zoom && (
+                {effects.vignette && (
                   <Slider
-                    value={[effects.zoomIntensity]}
-                    onValueChange={([v]) => updateEffect("zoomIntensity", v)}
+                    value={[effects.vignetteIntensity]}
+                    onValueChange={([v]) => updateEffect("vignetteIntensity", v)}
                     min={0.1}
                     max={1}
                     step={0.1}
-                    data-testid="slider-zoom-intensity"
+                    data-testid="slider-vignette-intensity"
                   />
                 )}
               </div>

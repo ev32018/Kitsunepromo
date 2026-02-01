@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { AudioAnalyzer } from "@/lib/audioAnalyzer";
-import { drawVisualization, clearParticles, resetRotation, applyImageEffects } from "@/lib/visualizers";
+import { drawVisualization, clearParticles, resetRotation, applyImageEffects, resetImageRotation } from "@/lib/visualizers";
 import type { VisualizationType, ColorScheme } from "@shared/schema";
 import type { ImageEffectSettings } from "@/components/ImageEffectsSettings";
 
@@ -78,10 +78,12 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
         img.crossOrigin = "anonymous";
         img.onload = () => {
           customImageRef.current = img;
+          resetImageRotation();
         };
         img.src = customImage;
       } else {
         customImageRef.current = null;
+        resetImageRotation();
       }
     }, [customImage]);
 
@@ -180,31 +182,34 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       const audioData = analyzer.getAudioData();
 
       const hasImageEffects = !!(customImageRef.current && imageEffects?.enabled);
+      const shouldHideVisualization = hasImageEffects && imageEffects?.hideVisualization;
       
       if (hasImageEffects) {
         applyImageEffects(ctx, canvas, audioData, customImageRef.current!, imageEffects);
       }
 
-      drawVisualization(
-        ctx,
-        canvas,
-        audioData,
-        visualizationType,
-        colorScheme,
-        {
-          sensitivity,
-          barCount,
-          particleCount,
-          glowIntensity,
-          rotationSpeed,
-          mirrorMode,
-          smoothing: 0.8,
-          colorIntensity: 1,
-        },
-        hasImageEffects ? null : bgImageRef.current,
-        customColors,
-        hasImageEffects
-      );
+      if (!shouldHideVisualization) {
+        drawVisualization(
+          ctx,
+          canvas,
+          audioData,
+          visualizationType,
+          colorScheme,
+          {
+            sensitivity,
+            barCount,
+            particleCount,
+            glowIntensity,
+            rotationSpeed,
+            mirrorMode,
+            smoothing: 0.8,
+            colorIntensity: 1,
+          },
+          hasImageEffects ? null : bgImageRef.current,
+          customColors,
+          hasImageEffects
+        );
+      }
 
       drawOverlay(ctx, canvas);
 

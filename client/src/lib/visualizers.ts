@@ -1113,6 +1113,7 @@ function drawEndlessMaze(
 
 export interface ImageEffectSettings {
   enabled: boolean;
+  hideVisualization: boolean;
   pulse: boolean;
   pulseIntensity: number;
   wave: boolean;
@@ -1123,6 +1124,24 @@ export interface ImageEffectSettings {
   glitchIntensity: number;
   zoom: boolean;
   zoomIntensity: number;
+  blur: boolean;
+  blurIntensity: number;
+  chromatic: boolean;
+  chromaticIntensity: number;
+  rotation: boolean;
+  rotationIntensity: number;
+  mirror: boolean;
+  mirrorMode: 'horizontal' | 'vertical' | 'quad';
+  scanlines: boolean;
+  scanlinesIntensity: number;
+  vignette: boolean;
+  vignetteIntensity: number;
+}
+
+let imageRotation = 0;
+
+export function resetImageRotation(): void {
+  imageRotation = 0;
 }
 
 export function applyImageEffects(
@@ -1133,25 +1152,28 @@ export function applyImageEffects(
   effects: ImageEffectSettings
 ): void {
   const { width, height } = canvas;
-  const { bassLevel, midLevel, trebleLevel, timeDomainData } = audioData;
+  const { bassLevel, midLevel, trebleLevel } = audioData;
   const time = Date.now() * 0.001;
   
   const bassNorm = bassLevel / 255;
   const midNorm = midLevel / 255;
   const trebleNorm = trebleLevel / 255;
+  const avgNorm = (bassNorm + midNorm + trebleNorm) / 3;
   
   ctx.save();
   
+  // Calculate scale from pulse and zoom effects
   let scale = 1;
-  let offsetX = 0;
-  let offsetY = 0;
-  
   if (effects.pulse) {
     scale += bassNorm * effects.pulseIntensity * 0.15;
   }
-  
   if (effects.zoom) {
     scale += midNorm * effects.zoomIntensity * 0.1;
+  }
+  
+  // Calculate rotation
+  if (effects.rotation) {
+    imageRotation += (0.005 + midNorm * 0.02) * effects.rotationIntensity;
   }
   
   const imgAspect = image.width / image.height;
@@ -1159,41 +1181,102 @@ export function applyImageEffects(
   
   let drawWidth: number, drawHeight: number;
   if (imgAspect > canvasAspect) {
-    drawHeight = height * scale;
+    drawHeight = height * scale * 1.2; // Extra for rotation
     drawWidth = drawHeight * imgAspect;
   } else {
-    drawWidth = width * scale;
+    drawWidth = width * scale * 1.2;
     drawHeight = drawWidth / imgAspect;
   }
   
-  const drawX = (width - drawWidth) / 2 + offsetX;
-  const drawY = (height - drawHeight) / 2 + offsetY;
+  // Apply blur effect using filter
+  if (effects.blur) {
+    const blurAmount = (1 - bassNorm) * effects.blurIntensity * 8;
+    ctx.filter = `blur(${blurAmount}px)`;
+  }
   
-  if (effects.wave) {
+  ctx.translate(width / 2, height / 2);
+  
+  if (effects.rotation) {
+    ctx.rotate(imageRotation);
+  }
+  
+  // Draw based on mirror mode
+  if (effects.mirror) {
+    const halfW = drawWidth / 2;
+    const halfH = drawHeight / 2;
+    
+    if (effects.mirrorMode === 'horizontal') {
+      // Draw left half
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-halfW, -halfH, halfW, drawHeight);
+      ctx.clip();
+      ctx.drawImage(image, -halfW, -halfH, drawWidth, drawHeight);
+      ctx.restore();
+      // Draw mirrored right half
+      ctx.save();
+      ctx.translate(0, 0);
+      ctx.scale(-1, 1);
+      ctx.beginPath();
+      ctx.rect(-halfW, -halfH, halfW, drawHeight);
+      ctx.clip();
+      ctx.drawImage(image, -halfW, -halfH, drawWidth, drawHeight);
+      ctx.restore();
+    } else if (effects.mirrorMode === 'vertical') {
+      // Draw top half
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-halfW, -halfH, drawWidth, halfH);
+      ctx.clip();
+      ctx.drawImage(image, -halfW, -halfH, drawWidth, drawHeight);
+      ctx.restore();
+      // Draw mirrored bottom half
+      ctx.save();
+      ctx.scale(1, -1);
+      ctx.beginPath();
+      ctx.rect(-halfW, -halfH, drawWidth, halfH);
+      ctx.clip();
+      ctx.drawImage(image, -halfW, -halfH, drawWidth, drawHeight);
+      ctx.restore();
+    } else if (effects.mirrorMode === 'quad') {
+      // Four-way mirror
+      const qw = halfW / 2;
+      const qh = halfH / 2;
+      for (let mx = -1; mx <= 1; mx += 2) {
+        for (let my = -1; my <= 1; my += 2) {
+          ctx.save();
+          ctx.scale(mx, my);
+          ctx.beginPath();
+          ctx.rect(0, 0, halfW, halfH);
+          ctx.clip();
+          ctx.drawImage(image, -halfW, -halfH, drawWidth, drawHeight);
+          ctx.restore();
+        }
+      }
+    }
+  } else if (effects.wave) {
+    // Wave distortion effect
     const segments = 20;
-    const segHeight = height / segments;
+    const segHeight = drawHeight / segments;
     
     for (let i = 0; i < segments; i++) {
       const waveOffset = Math.sin(time * 2 + i * 0.3) * midNorm * effects.waveIntensity * 30;
       
       ctx.save();
       ctx.beginPath();
-      ctx.rect(0, i * segHeight, width, segHeight + 1);
+      ctx.rect(-drawWidth / 2 + waveOffset, -drawHeight / 2 + i * segHeight, drawWidth, segHeight + 1);
       ctx.clip();
-      
-      ctx.drawImage(
-        image,
-        drawX + waveOffset,
-        drawY,
-        drawWidth,
-        drawHeight
-      );
+      ctx.drawImage(image, -drawWidth / 2 + waveOffset, -drawHeight / 2, drawWidth, drawHeight);
       ctx.restore();
     }
   } else {
-    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   }
   
+  ctx.filter = 'none';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  
+  // Color shift overlay
   if (effects.colorShift && trebleNorm > 0.2) {
     ctx.globalCompositeOperation = 'overlay';
     const hue = (time * 50 + trebleNorm * 100) % 360;
@@ -1202,6 +1285,22 @@ export function applyImageEffects(
     ctx.globalCompositeOperation = 'source-over';
   }
   
+  // Chromatic aberration (RGB split)
+  if (effects.chromatic && avgNorm > 0.2) {
+    const offset = avgNorm * effects.chromaticIntensity * 10;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.3 * effects.chromaticIntensity;
+    
+    // Red channel offset
+    ctx.drawImage(canvas, offset, 0);
+    // Cyan channel offset  
+    ctx.drawImage(canvas, -offset, 0);
+    
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  
+  // Glitch effect
   if (effects.glitch && bassNorm > 0.4) {
     const glitchChance = bassNorm * effects.glitchIntensity;
     
@@ -1217,6 +1316,7 @@ export function applyImageEffects(
           const imageData = ctx.getImageData(0, sliceY, width, sliceHeight);
           ctx.putImageData(imageData, sliceOffset, sliceY);
         } catch (e) {
+          // Ignore cross-origin errors
         }
       }
     }
@@ -1229,6 +1329,33 @@ export function applyImageEffects(
       ctx.fillRect(-2, 0, width, height);
       ctx.globalCompositeOperation = 'source-over';
     }
+  }
+  
+  // Scanlines overlay
+  if (effects.scanlines) {
+    ctx.globalAlpha = effects.scanlinesIntensity * 0.4;
+    const lineSpacing = 3;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.lineWidth = 1;
+    for (let y = 0; y < height; y += lineSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  
+  // Vignette effect
+  if (effects.vignette) {
+    const gradient = ctx.createRadialGradient(
+      width / 2, height / 2, height * 0.2,
+      width / 2, height / 2, height * (0.8 + (1 - effects.vignetteIntensity) * 0.4)
+    );
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(1, `rgba(0, 0, 0, ${0.4 + effects.vignetteIntensity * 0.5 + bassNorm * 0.1})`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
   }
   
   ctx.restore();
