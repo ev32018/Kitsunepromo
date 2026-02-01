@@ -22,6 +22,14 @@ import { WatermarkSettings, defaultWatermarkConfig, type WatermarkConfig } from 
 import { PerformanceSettings, defaultPerformanceConfig, type PerformanceConfig } from "@/components/PerformanceSettings";
 import { ThumbnailGenerator } from "@/components/ThumbnailGenerator";
 import { FadeSettings, type FadeConfig } from "@/components/FadeSettings";
+import { UndoRedoControls } from "@/components/UndoRedoControls";
+import { ProjectManager } from "@/components/ProjectManager";
+import { QuickExportPresets, type QuickExportConfig } from "@/components/QuickExportPresets";
+import { LoopRegion } from "@/components/LoopRegion";
+import { RecentProjects } from "@/components/RecentProjects";
+import { VisualizationScheduler, defaultSchedulerConfig, type ScheduleSegment } from "@/components/VisualizationScheduler";
+import { WaveformTrimmer } from "@/components/WaveformTrimmer";
+import { KeyboardShortcutSettings, defaultShortcuts, type ShortcutConfig } from "@/components/KeyboardShortcutSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -72,6 +80,10 @@ export default function Home() {
     outroColor: "#000000",
   });
   const [audioDuration, setAudioDuration] = useState(0);
+  const [schedulerConfig, setSchedulerConfig] = useState(defaultSchedulerConfig);
+  const [shortcuts, setShortcuts] = useState<ShortcutConfig>(defaultShortcuts);
+  const [settingsHistory, setSettingsHistory] = useState<Record<string, unknown>[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   const visualizerRef = useRef<VisualizerCanvasHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -492,6 +504,109 @@ export default function Home() {
                   }}
                 />
               </div>
+
+              <Separator className="bg-border/50" />
+
+              <QuickExportPresets
+                onSelectPreset={(config) => {
+                  setAspectRatioConfig(prev => ({ ...prev, ratio: config.aspectRatio as "16:9" | "9:16" | "1:1" | "4:5" }));
+                  toast({ title: `${config.name} preset applied`, description: `Aspect ratio set to ${config.aspectRatio}` });
+                }}
+                isExporting={false}
+              />
+
+              <Separator className="bg-border/50" />
+
+              {audioUrl && (
+                <>
+                  <LoopRegion
+                    duration={audioDuration}
+                    currentTime={audioElement?.currentTime || 0}
+                    audioElement={audioElement}
+                    isPlaying={isPlaying}
+                    onSeek={(time) => {
+                      if (audioElement) audioElement.currentTime = time;
+                    }}
+                  />
+                  <Separator className="bg-border/50" />
+                </>
+              )}
+
+              <VisualizationScheduler
+                segments={schedulerConfig.segments}
+                onSegmentsChange={(segments) => setSchedulerConfig(prev => ({ ...prev, segments }))}
+                duration={audioDuration}
+                enabled={schedulerConfig.enabled}
+                onEnabledChange={(enabled) => setSchedulerConfig(prev => ({ ...prev, enabled }))}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <ProjectManager
+                currentSettings={{
+                  visualizationType,
+                  colorScheme,
+                  customColors,
+                  sensitivity,
+                  barCount,
+                  particleCount,
+                  glowIntensity,
+                  rotationSpeed,
+                  mirrorMode,
+                  aspectRatioConfig,
+                  blendModeConfig,
+                  kenBurnsConfig,
+                  particleOverlayConfig,
+                  textOverlayConfig,
+                  progressBarConfig,
+                  fadeConfig,
+                  watermarkConfig,
+                }}
+                onLoadProject={(settings) => {
+                  if (settings.visualizationType) setVisualizationType(settings.visualizationType as VisualizationType);
+                  if (settings.colorScheme) setColorScheme(settings.colorScheme as ColorScheme);
+                  if (settings.customColors) setCustomColors(settings.customColors as string[]);
+                  if (settings.sensitivity) setSensitivity(settings.sensitivity as number);
+                  if (settings.barCount) setBarCount(settings.barCount as number);
+                  if (settings.particleCount) setParticleCount(settings.particleCount as number);
+                  if (settings.glowIntensity) setGlowIntensity(settings.glowIntensity as number);
+                  if (settings.rotationSpeed) setRotationSpeed(settings.rotationSpeed as number);
+                  if (settings.mirrorMode !== undefined) setMirrorMode(settings.mirrorMode as boolean);
+                  if (settings.aspectRatioConfig) setAspectRatioConfig(settings.aspectRatioConfig as AspectRatioConfig);
+                  if (settings.blendModeConfig) setBlendModeConfig(settings.blendModeConfig as BlendModeConfig);
+                  if (settings.kenBurnsConfig) setKenBurnsConfig(settings.kenBurnsConfig as KenBurnsConfig);
+                  if (settings.particleOverlayConfig) setParticleOverlayConfig(settings.particleOverlayConfig as ParticleOverlayConfig);
+                  if (settings.textOverlayConfig) setTextOverlayConfig(settings.textOverlayConfig as TextOverlayConfig);
+                  if (settings.progressBarConfig) setProgressBarConfig(settings.progressBarConfig as ProgressBarConfig);
+                  if (settings.fadeConfig) setFadeConfig(settings.fadeConfig as FadeConfig);
+                  if (settings.watermarkConfig) setWatermarkConfig(settings.watermarkConfig as WatermarkConfig);
+                  toast({ title: "Project Loaded", description: "Settings have been applied" });
+                }}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <RecentProjects
+                currentSettings={{
+                  visualizationType,
+                  colorScheme,
+                  sensitivity,
+                  barCount,
+                }}
+                onLoadProject={(settings) => {
+                  if (settings.visualizationType) setVisualizationType(settings.visualizationType as VisualizationType);
+                  if (settings.colorScheme) setColorScheme(settings.colorScheme as ColorScheme);
+                  if (settings.sensitivity) setSensitivity(settings.sensitivity as number);
+                  if (settings.barCount) setBarCount(settings.barCount as number);
+                }}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <KeyboardShortcutSettings
+                shortcuts={shortcuts}
+                onShortcutsChange={setShortcuts}
+              />
 
               <Separator className="bg-border/50" />
 
