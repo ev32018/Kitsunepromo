@@ -187,6 +187,8 @@ export interface TimelineClip {
   opacity?: number; // 0-100
   speed?: number; // playback speed multiplier
   filters?: ClipFilters;
+  // Attached effects (visualizers, overlays)
+  effects?: ClipEffect[];
 }
 
 export interface ClipFilters {
@@ -197,6 +199,23 @@ export interface ClipFilters {
   grayscale?: boolean;
   sepia?: boolean;
   invert?: boolean;
+}
+
+// Effect instance attached to a clip
+export interface ClipEffect {
+  id: string;
+  type: "visualizer" | "overlay" | "filter";
+  name: string;
+  enabled: boolean;
+  // For visualizer effects
+  visualizationType?: VisualizationType;
+  colorScheme?: ColorScheme;
+  visualizerSettings?: VisualizationSettings;
+  // For overlay/filter effects
+  settings?: Record<string, unknown>;
+  // Timing relative to clip
+  startOffset: number; // offset from clip start
+  duration: number; // duration of effect (0 = full clip)
 }
 
 export interface TimelineState {
