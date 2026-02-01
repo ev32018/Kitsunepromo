@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useTimelineState } from "@/hooks/use-timeline-state";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { cn } from "@/lib/utils";
 import { 
   Play, 
   Pause, 
