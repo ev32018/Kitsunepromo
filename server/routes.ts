@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import express from "express";
 import { storage } from "./storage";
-import { insertVisualizationProjectSchema } from "@shared/schema";
+import { insertVisualizationProjectSchema, insertPresetSchema } from "@shared/schema";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -76,6 +76,54 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting project:", error);
       res.status(500).json({ error: "Failed to delete project" });
+    }
+  });
+
+  app.get("/api/presets", async (req, res) => {
+    try {
+      const presets = await storage.getPresets();
+      res.json(presets);
+    } catch (error) {
+      console.error("Error fetching presets:", error);
+      res.status(500).json({ error: "Failed to fetch presets" });
+    }
+  });
+
+  app.get("/api/presets/share/:code", async (req, res) => {
+    try {
+      const preset = await storage.getPresetByShareCode(req.params.code);
+      if (!preset) {
+        return res.status(404).json({ error: "Preset not found" });
+      }
+      res.json(preset);
+    } catch (error) {
+      console.error("Error fetching preset by share code:", error);
+      res.status(500).json({ error: "Failed to fetch preset" });
+    }
+  });
+
+  app.post("/api/presets", async (req, res) => {
+    try {
+      const parsed = insertPresetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid preset data", details: parsed.error });
+      }
+      const preset = await storage.createPreset(parsed.data);
+      res.status(201).json(preset);
+    } catch (error) {
+      console.error("Error creating preset:", error);
+      res.status(500).json({ error: "Failed to create preset" });
+    }
+  });
+
+  app.delete("/api/presets/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePreset(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting preset:", error);
+      res.status(500).json({ error: "Failed to delete preset" });
     }
   });
 

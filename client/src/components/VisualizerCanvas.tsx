@@ -8,6 +8,7 @@ interface VisualizerCanvasProps {
   isPlaying: boolean;
   visualizationType: VisualizationType;
   colorScheme: ColorScheme;
+  customColors?: string[];
   sensitivity: number;
   barCount: number;
   particleCount: number;
@@ -15,6 +16,8 @@ interface VisualizerCanvasProps {
   rotationSpeed: number;
   mirrorMode: boolean;
   backgroundImage?: string | null;
+  overlayText?: string;
+  overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
 }
 
 export interface VisualizerCanvasHandle {
@@ -28,6 +31,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       isPlaying,
       visualizationType,
       colorScheme,
+      customColors,
       sensitivity,
       barCount,
       particleCount,
@@ -35,6 +39,8 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       rotationSpeed,
       mirrorMode,
       backgroundImage,
+      overlayText,
+      overlayPosition = "bottom-right",
     },
     ref
   ) => {
@@ -83,6 +89,59 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       };
     }, [audioElement]);
 
+    const drawOverlay = useCallback((ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+      if (!overlayText) return;
+
+      const padding = 20;
+      const fontSize = Math.max(14, canvas.width * 0.02);
+      
+      ctx.save();
+      ctx.font = `${fontSize}px system-ui, sans-serif`;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+
+      const textMetrics = ctx.measureText(overlayText);
+      let x: number, y: number;
+
+      switch (overlayPosition) {
+        case "top-left":
+          x = padding;
+          y = padding + fontSize;
+          ctx.textAlign = "left";
+          break;
+        case "top-right":
+          x = canvas.width - padding;
+          y = padding + fontSize;
+          ctx.textAlign = "right";
+          break;
+        case "bottom-left":
+          x = padding;
+          y = canvas.height - padding;
+          ctx.textAlign = "left";
+          break;
+        case "bottom-right":
+          x = canvas.width - padding;
+          y = canvas.height - padding;
+          ctx.textAlign = "right";
+          break;
+        case "center":
+          x = canvas.width / 2;
+          y = canvas.height / 2;
+          ctx.textAlign = "center";
+          break;
+        default:
+          x = canvas.width - padding;
+          y = canvas.height - padding;
+          ctx.textAlign = "right";
+      }
+
+      ctx.fillText(overlayText, x, y);
+      ctx.restore();
+    }, [overlayText, overlayPosition]);
+
     const draw = useCallback(() => {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
@@ -117,19 +176,24 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
           smoothing: 0.8,
           colorIntensity: 1,
         },
-        bgImageRef.current
+        bgImageRef.current,
+        customColors
       );
+
+      drawOverlay(ctx, canvas);
 
       animationFrameRef.current = requestAnimationFrame(draw);
     }, [
       visualizationType,
       colorScheme,
+      customColors,
       sensitivity,
       barCount,
       particleCount,
       glowIntensity,
       rotationSpeed,
       mirrorMode,
+      drawOverlay,
     ]);
 
     useEffect(() => {

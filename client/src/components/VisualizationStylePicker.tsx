@@ -10,6 +10,9 @@ import {
   Box,
   Sun,
   Mountain,
+  Radio,
+  SlidersHorizontal,
+  AudioWaveform,
 } from "lucide-react";
 
 interface VisualizationStylePickerProps {
@@ -60,6 +63,21 @@ const visualizationMeta: Record<
     icon: Mountain,
     label: "Mountain Range",
     description: "Layered peaks",
+  },
+  spectrumAnalyzer: {
+    icon: Radio,
+    label: "Spectrum Analyzer",
+    description: "LED-style display",
+  },
+  equalizer: {
+    icon: SlidersHorizontal,
+    label: "Equalizer",
+    description: "EQ band display",
+  },
+  audioBars: {
+    icon: AudioWaveform,
+    label: "Audio Bars",
+    description: "Centered wave bars",
   },
 };
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { AudioUploader } from "@/components/AudioUploader";
 import { VisualizerCanvas, type VisualizerCanvasHandle } from "@/components/VisualizerCanvas";
 import { AudioPlayer } from "@/components/AudioPlayer";
@@ -7,10 +7,16 @@ import { ColorSchemePicker } from "@/components/ColorSchemePicker";
 import { VisualizationControls } from "@/components/VisualizationControls";
 import { ExportControls } from "@/components/ExportControls";
 import { AIBackgroundGenerator } from "@/components/AIBackgroundGenerator";
+import { PresetManager } from "@/components/PresetManager";
+import { OverlaySettings } from "@/components/OverlaySettings";
+import { CustomColorPicker } from "@/components/CustomColorPicker";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import type { VisualizationType, ColorScheme } from "@shared/schema";
-import { Music, Waves } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import type { VisualizationType, ColorScheme, VisualizationSettings } from "@shared/schema";
+import { Music, Waves, Maximize, Minimize, Keyboard } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -18,9 +24,11 @@ export default function Home() {
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [visualizationType, setVisualizationType] = useState<VisualizationType>("circular");
   const [colorScheme, setColorScheme] = useState<ColorScheme>("neon");
+  const [customColors, setCustomColors] = useState<string[]>([]);
   const [sensitivity, setSensitivity] = useState(1.5);
   const [barCount, setBarCount] = useState(64);
   const [particleCount, setParticleCount] = useState(150);
@@ -28,8 +36,14 @@ export default function Home() {
   const [rotationSpeed, setRotationSpeed] = useState(0.5);
   const [mirrorMode, setMirrorMode] = useState(false);
   const [aiBackground, setAiBackground] = useState<string | null>(null);
+  const [overlayText, setOverlayText] = useState("");
+  const [overlayPosition, setOverlayPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right" | "center">("bottom-right");
+  const [bpm, setBpm] = useState<number | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const visualizerRef = useRef<VisualizerCanvasHandle>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const handleFileSelect = useCallback((file: File) => {
     setIsLoading(true);
@@ -42,6 +56,7 @@ export default function Home() {
     const url = URL.createObjectURL(file);
     setAudioUrl(url);
     setIsLoading(false);
+    setBpm(null);
   }, [audioUrl]);
 
   const handleClearAudio = useCallback(() => {
@@ -52,6 +67,7 @@ export default function Home() {
     setAudioUrl(null);
     setAudioElement(null);
     setIsPlaying(false);
+    setBpm(null);
   }, [audioUrl]);
 
   const handleAudioElement = useCallback((element: HTMLAudioElement | null) => {
@@ -62,134 +78,320 @@ export default function Home() {
     setIsPlaying(playing);
   }, []);
 
+  const toggleFullscreen = useCallback(async () => {
+    if (!containerRef.current) return;
+
+    if (!isFullscreen) {
+      try {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } catch (e) {
+        console.error("Fullscreen failed:", e);
+      }
+    } else {
+      try {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      } catch (e) {
+        console.error("Exit fullscreen failed:", e);
+      }
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key.toLowerCase()) {
+        case " ":
+          e.preventDefault();
+          if (audioElement) {
+            if (isPlaying) {
+              audioElement.pause();
+              setIsPlaying(false);
+            } else {
+              audioElement.play();
+              setIsPlaying(true);
+            }
+          }
+          break;
+        case "arrowleft":
+          e.preventDefault();
+          if (audioElement) {
+            audioElement.currentTime = Math.max(0, audioElement.currentTime - 5);
+          }
+          break;
+        case "arrowright":
+          e.preventDefault();
+          if (audioElement) {
+            audioElement.currentTime = Math.min(audioElement.duration, audioElement.currentTime + 5);
+          }
+          break;
+        case "f":
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case "m":
+          e.preventDefault();
+          if (audioElement) {
+            audioElement.muted = !audioElement.muted;
+          }
+          break;
+        case "?":
+          e.preventDefault();
+          setShowShortcuts(prev => !prev);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [audioElement, isPlaying, toggleFullscreen]);
+
+  const loadPreset = useCallback((preset: {
+    visualizationType: VisualizationType;
+    colorScheme: ColorScheme;
+    customColors?: string[];
+    settings: VisualizationSettings;
+    overlayText?: string;
+    overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+  }) => {
+    setVisualizationType(preset.visualizationType);
+    setColorScheme(preset.colorScheme);
+    if (preset.customColors) setCustomColors(preset.customColors);
+    setSensitivity(preset.settings.sensitivity);
+    setBarCount(preset.settings.barCount);
+    setParticleCount(preset.settings.particleCount);
+    setGlowIntensity(preset.settings.glowIntensity);
+    setRotationSpeed(preset.settings.rotationSpeed);
+    setMirrorMode(preset.settings.mirrorMode);
+    if (preset.overlayText) setOverlayText(preset.overlayText);
+    if (preset.overlayPosition) setOverlayPosition(preset.overlayPosition);
+    toast({ title: "Preset loaded", description: "Visualization settings applied." });
+  }, [toast]);
+
+  const getCurrentSettings = useCallback((): VisualizationSettings => ({
+    sensitivity,
+    smoothing: 0.8,
+    barCount,
+    particleCount,
+    glowIntensity,
+    rotationSpeed,
+    colorIntensity: 1,
+    mirrorMode,
+  }), [sensitivity, barCount, particleCount, glowIntensity, rotationSpeed, mirrorMode]);
+
   return (
-    <div className="min-h-screen bg-background flex">
-      <aside className="w-80 border-r border-border/50 bg-card/30 backdrop-blur-sm flex flex-col">
-        <div className="p-4 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/20 glow-sm">
-              <Waves className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="font-semibold gradient-text">AudioViz</h1>
-              <p className="text-xs text-muted-foreground">
-                Audio Visualization Studio
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Music className="w-3 h-3" />
-                Audio Source
-              </h3>
-              <AudioUploader
-                onFileSelect={handleFileSelect}
-                currentFile={audioFile}
-                onClear={handleClearAudio}
-                isLoading={isLoading}
-              />
-            </div>
-
-            <Separator className="bg-border/50" />
-
-            <VisualizationStylePicker
-              value={visualizationType}
-              onChange={setVisualizationType}
-            />
-
-            <Separator className="bg-border/50" />
-
-            <ColorSchemePicker
-              value={colorScheme}
-              onChange={setColorScheme}
-            />
-
-            <Separator className="bg-border/50" />
-
-            <VisualizationControls
-              sensitivity={sensitivity}
-              onSensitivityChange={setSensitivity}
-              barCount={barCount}
-              onBarCountChange={setBarCount}
-              particleCount={particleCount}
-              onParticleCountChange={setParticleCount}
-              glowIntensity={glowIntensity}
-              onGlowIntensityChange={setGlowIntensity}
-              rotationSpeed={rotationSpeed}
-              onRotationSpeedChange={setRotationSpeed}
-              mirrorMode={mirrorMode}
-              onMirrorModeChange={setMirrorMode}
-            />
-
-            <Separator className="bg-border/50" />
-
-            <AIBackgroundGenerator
-              onBackgroundGenerated={setAiBackground}
-              currentBackground={aiBackground}
-            />
-
-            <Separator className="bg-border/50" />
-
-            <ExportControls
-              canvasRef={visualizerRef}
-              audioElement={audioElement}
-              isPlaying={isPlaying}
-              onPlayStateChange={handlePlayStateChange}
-            />
-          </div>
-        </ScrollArea>
-      </aside>
-
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 p-6 flex flex-col items-center justify-center">
-          <div className="w-full max-w-4xl aspect-video rounded-xl overflow-hidden border border-border/30 bg-black/50 relative">
-            {audioUrl ? (
-              <VisualizerCanvas
-                ref={visualizerRef}
-                audioElement={audioElement}
-                isPlaying={isPlaying}
-                visualizationType={visualizationType}
-                colorScheme={colorScheme}
-                sensitivity={sensitivity}
-                barCount={barCount}
-                particleCount={particleCount}
-                glowIntensity={glowIntensity}
-                rotationSpeed={rotationSpeed}
-                mirrorMode={mirrorMode}
-                backgroundImage={aiBackground}
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center space-y-4">
-                  <div className="p-6 rounded-full bg-primary/10 mx-auto w-fit">
-                    <Waves className="w-16 h-16 text-primary/50" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-medium text-muted-foreground">
-                      No Audio Loaded
-                    </h2>
-                    <p className="text-sm text-muted-foreground/70 mt-1">
-                      Upload an audio file to start visualizing
-                    </p>
-                  </div>
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
+      <div className="flex-1 flex overflow-hidden">
+        <aside className="w-80 border-r border-border/50 bg-card/30 backdrop-blur-sm flex flex-col">
+          <div className="p-4 border-b border-border/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/20 glow-sm">
+                  <Waves className="w-5 h-5 text-primary" />
                 </div>
+                <div>
+                  <h1 className="font-semibold gradient-text">AudioViz</h1>
+                  <p className="text-xs text-muted-foreground">
+                    Audio Visualization Studio
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setShowShortcuts(prev => !prev)}
+                className="h-8 w-8"
+                data-testid="button-shortcuts"
+              >
+                <Keyboard className="w-4 h-4" />
+              </Button>
+            </div>
+            {showShortcuts && (
+              <div className="mt-3 p-3 bg-muted/50 rounded-lg text-xs space-y-1">
+                <p className="font-medium mb-2">Keyboard Shortcuts</p>
+                <div className="flex justify-between"><span>Play/Pause</span><Badge variant="secondary">Space</Badge></div>
+                <div className="flex justify-between"><span>Seek -5s</span><Badge variant="secondary">←</Badge></div>
+                <div className="flex justify-between"><span>Seek +5s</span><Badge variant="secondary">→</Badge></div>
+                <div className="flex justify-between"><span>Fullscreen</span><Badge variant="secondary">F</Badge></div>
+                <div className="flex justify-between"><span>Mute</span><Badge variant="secondary">M</Badge></div>
               </div>
             )}
           </div>
 
-          <div className="mt-4 w-full max-w-4xl">
-            <AudioPlayer
-              audioUrl={audioUrl}
-              onAudioElement={handleAudioElement}
-              onPlayStateChange={handlePlayStateChange}
-            />
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Music className="w-3 h-3" />
+                  Audio Source
+                </h3>
+                <AudioUploader
+                  onFileSelect={handleFileSelect}
+                  currentFile={audioFile}
+                  onClear={handleClearAudio}
+                  isLoading={isLoading}
+                />
+                {bpm && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">BPM: {bpm}</Badge>
+                  </div>
+                )}
+              </div>
+
+              <Separator className="bg-border/50" />
+
+              <PresetManager
+                currentSettings={{
+                  visualizationType,
+                  colorScheme,
+                  customColors: customColors.length > 0 ? customColors : undefined,
+                  settings: getCurrentSettings(),
+                  overlayText: overlayText || undefined,
+                  overlayPosition,
+                }}
+                onLoadPreset={loadPreset}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <VisualizationStylePicker
+                value={visualizationType}
+                onChange={setVisualizationType}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <ColorSchemePicker
+                value={colorScheme}
+                onChange={setColorScheme}
+              />
+
+              <CustomColorPicker
+                colors={customColors}
+                onChange={setCustomColors}
+                enabled={customColors.length > 0}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <VisualizationControls
+                sensitivity={sensitivity}
+                onSensitivityChange={setSensitivity}
+                barCount={barCount}
+                onBarCountChange={setBarCount}
+                particleCount={particleCount}
+                onParticleCountChange={setParticleCount}
+                glowIntensity={glowIntensity}
+                onGlowIntensityChange={setGlowIntensity}
+                rotationSpeed={rotationSpeed}
+                onRotationSpeedChange={setRotationSpeed}
+                mirrorMode={mirrorMode}
+                onMirrorModeChange={setMirrorMode}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <OverlaySettings
+                text={overlayText}
+                onTextChange={setOverlayText}
+                position={overlayPosition}
+                onPositionChange={setOverlayPosition}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <AIBackgroundGenerator
+                onBackgroundGenerated={setAiBackground}
+                currentBackground={aiBackground}
+              />
+
+              <Separator className="bg-border/50" />
+
+              <ExportControls
+                canvasRef={visualizerRef}
+                audioElement={audioElement}
+                isPlaying={isPlaying}
+                onPlayStateChange={handlePlayStateChange}
+              />
+            </div>
+          </ScrollArea>
+        </aside>
+
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-4 flex flex-col gap-4 h-full">
+            <div 
+              ref={containerRef}
+              className="relative w-full aspect-video max-h-[60vh] rounded-xl overflow-hidden border border-border/30 bg-black/50"
+            >
+              {audioUrl ? (
+                <>
+                  <VisualizerCanvas
+                    ref={visualizerRef}
+                    audioElement={audioElement}
+                    isPlaying={isPlaying}
+                    visualizationType={visualizationType}
+                    colorScheme={colorScheme}
+                    customColors={customColors.length > 0 ? customColors : undefined}
+                    sensitivity={sensitivity}
+                    barCount={barCount}
+                    particleCount={particleCount}
+                    glowIntensity={glowIntensity}
+                    rotationSpeed={rotationSpeed}
+                    mirrorMode={mirrorMode}
+                    backgroundImage={aiBackground}
+                    overlayText={overlayText}
+                    overlayPosition={overlayPosition}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={toggleFullscreen}
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70"
+                    data-testid="button-fullscreen"
+                  >
+                    {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                  </Button>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center space-y-4">
+                    <div className="p-6 rounded-full bg-primary/10 mx-auto w-fit">
+                      <Waves className="w-16 h-16 text-primary/50" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-medium text-muted-foreground">
+                        No Audio Loaded
+                      </h2>
+                      <p className="text-sm text-muted-foreground/70 mt-1">
+                        Upload an audio file to start visualizing
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="w-full">
+              <AudioPlayer
+                audioUrl={audioUrl}
+                onAudioElement={handleAudioElement}
+                onPlayStateChange={handlePlayStateChange}
+                onBpmDetected={setBpm}
+              />
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

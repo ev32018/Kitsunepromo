@@ -42,6 +42,38 @@ export interface VisualizationSettings {
   mirrorMode: boolean;
 }
 
+export interface VisualizationPreset {
+  id: string;
+  name: string;
+  visualizationType: VisualizationType;
+  colorScheme: ColorScheme;
+  customColors?: string[];
+  settings: VisualizationSettings;
+  overlayText?: string;
+  overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+}
+
+export const visualizationPresets = pgTable("visualization_presets", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  visualizationType: text("visualization_type").notNull(),
+  colorScheme: text("color_scheme").notNull(),
+  customColors: text("custom_colors").array(),
+  settings: jsonb("settings").$type<VisualizationSettings>(),
+  overlayText: text("overlay_text"),
+  overlayPosition: text("overlay_position"),
+  shareCode: varchar("share_code", { length: 12 }).unique(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertPresetSchema = createInsertSchema(visualizationPresets).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPreset = z.infer<typeof insertPresetSchema>;
+export type Preset = typeof visualizationPresets.$inferSelect;
+
 export const insertVisualizationProjectSchema = createInsertSchema(visualizationProjects).omit({
   id: true,
   createdAt: true,
@@ -59,7 +91,10 @@ export const visualizationTypes = [
   "fluid",
   "spectrum3d",
   "radialBurst",
-  "mountainRange"
+  "mountainRange",
+  "spectrumAnalyzer",
+  "equalizer",
+  "audioBars"
 ] as const;
 
 export type VisualizationType = typeof visualizationTypes[number];

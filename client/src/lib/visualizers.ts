@@ -53,10 +53,11 @@ export function drawVisualization(
   type: VisualizationType,
   colorScheme: ColorScheme,
   config: Partial<VisualizerConfig> = {},
-  backgroundImage?: HTMLImageElement | null
+  backgroundImage?: HTMLImageElement | null,
+  customColors?: string[]
 ): void {
   const cfg = { ...defaultConfig, ...config };
-  const colors = colorSchemes[colorScheme];
+  const colors = customColors && customColors.length > 0 ? customColors : colorSchemes[colorScheme];
   const { width, height } = canvas;
 
   ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
@@ -94,6 +95,15 @@ export function drawVisualization(
       break;
     case "mountainRange":
       drawMountainRange(ctx, canvas, audioData, colors, cfg);
+      break;
+    case "spectrumAnalyzer":
+      drawSpectrumAnalyzer(ctx, canvas, audioData, colors, cfg);
+      break;
+    case "equalizer":
+      drawEqualizer(ctx, canvas, audioData, colors, cfg);
+      break;
+    case "audioBars":
+      drawAudioBars(ctx, canvas, audioData, colors, cfg);
       break;
   }
 }
@@ -453,6 +463,129 @@ function drawMountainRange(
     ctx.shadowColor = colors[layer % colors.length];
     ctx.shadowBlur = 8 * config.glowIntensity;
     ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+}
+
+function drawSpectrumAnalyzer(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  colors: string[],
+  config: VisualizerConfig
+): void {
+  const { width, height } = canvas;
+  const { frequencyData } = audioData;
+  const barCount = config.barCount;
+  const step = Math.floor(frequencyData.length / barCount);
+  const barWidth = (width / barCount) * 0.8;
+  const gap = (width / barCount) * 0.2;
+
+  for (let i = 0; i < barCount; i++) {
+    const value = frequencyData[i * step] * config.sensitivity;
+    const barHeight = (value / 255) * height * 0.85;
+    const x = i * (barWidth + gap);
+    const y = height - barHeight;
+
+    const segments = 20;
+    const segmentHeight = barHeight / segments;
+
+    for (let s = 0; s < segments; s++) {
+      const segY = height - (s + 1) * segmentHeight;
+      const intensity = s / segments;
+      const colorIndex = Math.floor(intensity * (colors.length - 1));
+      
+      ctx.fillStyle = colors[colorIndex];
+      ctx.shadowColor = colors[colorIndex];
+      ctx.shadowBlur = 5 * config.glowIntensity;
+      
+      if (segY >= y) {
+        ctx.fillRect(x, segY, barWidth, segmentHeight - 1);
+      }
+    }
+
+    ctx.fillStyle = colors[0];
+    ctx.shadowColor = colors[0];
+    ctx.shadowBlur = 10 * config.glowIntensity;
+    ctx.fillRect(x, y - 4, barWidth, 3);
+  }
+  ctx.shadowBlur = 0;
+}
+
+function drawEqualizer(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  colors: string[],
+  config: VisualizerConfig
+): void {
+  const { width, height } = canvas;
+  const { frequencyData, bassLevel, midLevel, trebleLevel } = audioData;
+  const bands = 10;
+  const bandWidth = width / bands - 10;
+
+  const levels = [bassLevel, bassLevel * 0.9, midLevel * 1.1, midLevel, midLevel * 0.95, 
+                  midLevel * 0.9, trebleLevel * 1.1, trebleLevel, trebleLevel * 0.8, trebleLevel * 0.6];
+
+  for (let i = 0; i < bands; i++) {
+    const value = (levels[i] / 255) * config.sensitivity;
+    const barHeight = value * height * 0.8;
+    const x = i * (bandWidth + 10) + 5;
+    const centerY = height / 2;
+
+    const gradient = ctx.createLinearGradient(x, centerY - barHeight / 2, x, centerY + barHeight / 2);
+    const colorIndex = Math.floor((i / bands) * colors.length);
+    gradient.addColorStop(0, colors[colorIndex % colors.length]);
+    gradient.addColorStop(0.5, colors[(colorIndex + 1) % colors.length]);
+    gradient.addColorStop(1, colors[colorIndex % colors.length]);
+
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = colors[colorIndex % colors.length];
+    ctx.shadowBlur = 15 * config.glowIntensity;
+
+    const radius = 5;
+    ctx.beginPath();
+    ctx.roundRect(x, centerY - barHeight / 2, bandWidth, barHeight, radius);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+}
+
+function drawAudioBars(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  colors: string[],
+  config: VisualizerConfig
+): void {
+  const { width, height } = canvas;
+  const { frequencyData, timeDomainData } = audioData;
+  const barCount = config.barCount;
+  const step = Math.floor(frequencyData.length / barCount);
+  const barWidth = width / barCount - 1;
+
+  for (let i = 0; i < barCount; i++) {
+    const freqValue = frequencyData[i * step] * config.sensitivity;
+    const timeValue = timeDomainData[i * step];
+    const combinedValue = (freqValue + (timeValue - 128) * 2) / 2;
+    const barHeight = (Math.abs(combinedValue) / 255) * height * 0.9;
+    
+    const x = i * (barWidth + 1);
+    const centerY = height / 2;
+
+    const colorIndex = Math.floor((i / barCount) * colors.length);
+    const gradient = ctx.createLinearGradient(x, centerY - barHeight, x, centerY + barHeight);
+    gradient.addColorStop(0, colors[colorIndex % colors.length] + "00");
+    gradient.addColorStop(0.3, colors[colorIndex % colors.length]);
+    gradient.addColorStop(0.5, colors[(colorIndex + 1) % colors.length]);
+    gradient.addColorStop(0.7, colors[colorIndex % colors.length]);
+    gradient.addColorStop(1, colors[colorIndex % colors.length] + "00");
+
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = colors[colorIndex % colors.length];
+    ctx.shadowBlur = 8 * config.glowIntensity;
+
+    ctx.fillRect(x, centerY - barHeight / 2, barWidth, barHeight);
   }
   ctx.shadowBlur = 0;
 }
