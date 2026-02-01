@@ -1,7 +1,7 @@
-# AudioViz - Audio Visualization Studio
+# Kitsune Promo - Audio Visualization Studio
 
 ## Overview
-AudioViz is a professional audio visualization web application that creates stunning, synchronized visualizations from audio files with AI-enhanced backgrounds and video export capabilities.
+Kitsune Promo is a professional audio visualization web application that creates stunning, synchronized visualizations from audio files with AI-enhanced backgrounds and video export capabilities.
 
 ## Features
 - **Audio Upload**: Support for MP3, WAV, OGG, FLAC files up to 100MB

@@ -340,7 +340,7 @@ export default function Home() {
                   <Waves className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h1 className="font-semibold gradient-text">AudioViz</h1>
+                  <h1 className="font-semibold gradient-text">Kitsune Promo</h1>
                   <p className="text-xs text-muted-foreground">
                     Audio Visualization Studio
                   </p>
@@ -726,7 +726,7 @@ export default function Home() {
             </Button>
             <div className="flex items-center gap-2">
               <Waves className="w-5 h-5 text-primary" />
-              <span className="font-semibold gradient-text">AudioViz</span>
+              <span className="font-semibold gradient-text">Kitsune Promo</span>
             </div>
             {audioFile && (
               <Badge variant="secondary" className="ml-auto text-xs truncate max-w-[150px]">
