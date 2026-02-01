@@ -30,6 +30,7 @@ import { RecentProjects } from "@/components/RecentProjects";
 import { VisualizationScheduler, defaultSchedulerConfig, type ScheduleSegment } from "@/components/VisualizationScheduler";
 import { WaveformTrimmer } from "@/components/WaveformTrimmer";
 import { KeyboardShortcutSettings, defaultShortcuts, type ShortcutConfig } from "@/components/KeyboardShortcutSettings";
+import EffectAutomation from "@/components/EffectAutomation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export default function Home() {
   const [mirrorMode, setMirrorMode] = useState(false);
   const [aiBackground, setAiBackground] = useState<string | null>(null);
   const [bpm, setBpm] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [customImage, setCustomImage] = useState<string | null>(null);
   const [imageEffects, setImageEffects] = useState<ImageEffectSettings>(defaultImageEffects);
@@ -141,6 +143,18 @@ export default function Home() {
     
     audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
     return () => audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+  }, [audioElement]);
+
+  // Track current time for automation
+  useEffect(() => {
+    if (!audioElement) return;
+    
+    const handleTimeUpdate = () => {
+      setCurrentTime(audioElement.currentTime);
+    };
+    
+    audioElement.addEventListener('timeupdate', handleTimeUpdate);
+    return () => audioElement.removeEventListener('timeupdate', handleTimeUpdate);
   }, [audioElement]);
 
   useEffect(() => {
@@ -497,6 +511,14 @@ export default function Home() {
                 onImageChange={setCustomImage}
                 effects={imageEffects}
                 onEffectsChange={setImageEffects}
+              />
+
+              <EffectAutomation
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+                bpm={bpm}
+                imageEffects={imageEffects}
+                onEffectsChange={(effects) => setImageEffects(prev => ({ ...prev, ...effects }))}
               />
 
               <BlendModeSettings

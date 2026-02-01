@@ -50,6 +50,10 @@ AudioViz is a professional audio visualization web application that creates stun
 - **Quick Export Presets**: One-click platform-specific configurations (YouTube, TikTok, Instagram, Spotify Canvas, Custom)
 - **Audio Normalization**: Auto-adjust audio levels with target presets (-14dB streaming, -16dB broadcast, -9dB loud)
 - **Visualization Scheduler**: Schedule different visualization styles for different song sections with transitions
+- **Effect Automation**: 8 preset automation patterns (EDM Drop, Chill Vibes, Glitch Mode, Dreamy, Rain Storm, Psychedelic, Minimal Pulse, Retro VHS) with:
+  - Sequential, random, or beat-sync cycling modes
+  - Customizable cycle timing or beats-per-change
+  - Automatic effect transitions synced to BPM
 - **Keyboard Shortcut Customization**: Customize all hotkeys with real-time key capture
 - **Recent Projects History**: Quick access to last 10 project settings (localStorage)
 - **Export Progress with ETA**: Real-time progress bar with estimated time remaining
@@ -103,7 +107,8 @@ client/
 │   │   ├── KeyboardShortcutSettings.tsx
 │   │   ├── RecentProjects.tsx
 │   │   ├── ExportProgress.tsx
-│   │   └── DraggablePresetList.tsx
+│   │   ├── DraggablePresetList.tsx
+│   │   └── EffectAutomation.tsx
 │   ├── lib/           # Utility libraries
 │   │   ├── audioAnalyzer.ts    # Web Audio API wrapper
 │   │   ├── visualizers.ts      # Canvas visualization renderers
