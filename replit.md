@@ -41,6 +41,19 @@ AudioViz is a professional audio visualization web application that creates stun
 - **Performance Mode**: 4 quality levels (low/medium/high/ultra), FPS options (24/30/60), particle reduction toggle
 - **Thumbnail Generator**: Auto-generate thumbnails for 6 social platforms (YouTube, TikTok, Instagram, Twitter, Facebook) with capture time selection and batch download
 - **Intro/Outro Fades**: 8 transition effects (fade, fade-blur, fade-zoom, slide directions), customizable duration and background colors
+- **Undo/Redo Controls**: Toolbar buttons with visual history indicator, tracks visualization and color scheme changes
+- **Batch Export**: Export multiple formats/aspect ratios simultaneously (YouTube + TikTok + Instagram)
+- **Waveform Trimmer**: Visual waveform display with beat markers, peak analysis, and precise timeline editing
+- **Loop Region Preview**: A-B loop points for testing specific audio sections before export
+- **Project Save/Load**: Export and import complete project settings as JSON files
+- **Quick Export Presets**: One-click platform-specific configurations (YouTube, TikTok, Instagram, Spotify Canvas, Custom)
+- **Audio Normalization**: Auto-adjust audio levels with target presets (-14dB streaming, -16dB broadcast, -9dB loud)
+- **Visualization Scheduler**: Schedule different visualization styles for different song sections with transitions
+- **Keyboard Shortcut Customization**: Customize all hotkeys with real-time key capture
+- **Recent Projects History**: Quick access to last 10 project settings (localStorage)
+- **Export Progress with ETA**: Real-time progress bar with estimated time remaining
+- **Drag-and-Drop Preset Reordering**: Organize saved presets via drag-and-drop
+- **Mobile Responsive Design**: Collapsible sidebar, touch-friendly UI, optimized for tablets and phones
 
 ## Tech Stack
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI
@@ -77,7 +90,19 @@ client/
 │   │   ├── WatermarkSettings.tsx
 │   │   ├── PerformanceSettings.tsx
 │   │   ├── ThumbnailGenerator.tsx
-│   │   └── FadeSettings.tsx
+│   │   ├── FadeSettings.tsx
+│   │   ├── UndoRedoControls.tsx
+│   │   ├── BatchExport.tsx
+│   │   ├── WaveformTrimmer.tsx
+│   │   ├── LoopRegion.tsx
+│   │   ├── ProjectManager.tsx
+│   │   ├── QuickExportPresets.tsx
+│   │   ├── AudioNormalization.tsx
+│   │   ├── VisualizationScheduler.tsx
+│   │   ├── KeyboardShortcutSettings.tsx
+│   │   ├── RecentProjects.tsx
+│   │   ├── ExportProgress.tsx
+│   │   └── DraggablePresetList.tsx
 │   ├── lib/           # Utility libraries
 │   │   ├── audioAnalyzer.ts    # Web Audio API wrapper
 │   │   ├── visualizers.ts      # Canvas visualization renderers

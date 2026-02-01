@@ -72,11 +72,11 @@ export function KeyboardShortcutSettings({ shortcuts, onShortcutsChange }: Keybo
 
   const formatShortcut = (shortcut: string): string => {
     return shortcut
-      .replace("ArrowLeft", "←")
-      .replace("ArrowRight", "→")
-      .replace("ArrowUp", "↑")
-      .replace("ArrowDown", "↓")
-      .replace("Space", "␣");
+      .replace("ArrowLeft", "Left")
+      .replace("ArrowRight", "Right")
+      .replace("ArrowUp", "Up")
+      .replace("ArrowDown", "Down")
+      .replace("Space", "Space");
   };
 
   return (

@@ -143,6 +143,23 @@ export default function Home() {
     return () => audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
   }, [audioElement]);
 
+  useEffect(() => {
+    const currentSettings = { visualizationType, colorScheme };
+    if (settingsHistory.length === 0) {
+      setSettingsHistory([currentSettings]);
+      setHistoryIndex(0);
+    } else {
+      const lastSettings = settingsHistory[historyIndex];
+      if (lastSettings?.visualizationType !== visualizationType || lastSettings?.colorScheme !== colorScheme) {
+        const newHistory = settingsHistory.slice(0, historyIndex + 1);
+        newHistory.push(currentSettings);
+        if (newHistory.length > 50) newHistory.shift();
+        setSettingsHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+      }
+    }
+  }, [visualizationType, colorScheme]);
+
   const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return;
 
@@ -366,6 +383,29 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              <UndoRedoControls
+                canUndo={historyIndex > 0}
+                canRedo={historyIndex < settingsHistory.length - 1}
+                onUndo={() => {
+                  if (historyIndex > 0) {
+                    const prevState = settingsHistory[historyIndex - 1];
+                    setHistoryIndex(historyIndex - 1);
+                    if (prevState.visualizationType) setVisualizationType(prevState.visualizationType as VisualizationType);
+                    if (prevState.colorScheme) setColorScheme(prevState.colorScheme as ColorScheme);
+                  }
+                }}
+                onRedo={() => {
+                  if (historyIndex < settingsHistory.length - 1) {
+                    const nextState = settingsHistory[historyIndex + 1];
+                    setHistoryIndex(historyIndex + 1);
+                    if (nextState.visualizationType) setVisualizationType(nextState.visualizationType as VisualizationType);
+                    if (nextState.colorScheme) setColorScheme(nextState.colorScheme as ColorScheme);
+                  }
+                }}
+                historyLength={settingsHistory.length}
+                currentIndex={historyIndex}
+              />
 
               <Separator className="bg-border/50" />
 
