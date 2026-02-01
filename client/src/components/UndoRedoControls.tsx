@@ -18,6 +18,7 @@ export function UndoRedoControls({
   onUndo,
   onRedo,
   historyLength = 0,
+  futureLength = 0,
   currentIndex = 0,
 }: UndoRedoControlsProps) {
   return (
