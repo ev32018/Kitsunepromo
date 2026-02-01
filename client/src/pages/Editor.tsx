@@ -38,6 +38,7 @@ import {
   Contrast,
   Droplet,
   Eye,
+  EyeOff,
   Settings2,
   Zap,
   Power
@@ -1125,27 +1126,31 @@ function ClipPropertiesPanel({
   onSplit,
   onDelete,
   playhead,
+  onToggleEffect,
+  onRemoveEffect,
 }: {
   clip: TimelineClip;
   onUpdate: (updates: Partial<TimelineClip>) => void;
   onSplit: () => void;
   onDelete: () => void;
   playhead: number;
+  onToggleEffect?: (clipId: string, effectId: string) => void;
+  onRemoveEffect?: (clipId: string, effectId: string) => void;
 }) {
   const canSplit = playhead > clip.startTime && playhead < clip.startTime + clip.duration;
+  const effects = clip.effects || [];
 
   return (
     <div className="p-4 space-y-4 border-l bg-card" data-testid="clip-properties-panel">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-1">
         <h3 className="text-sm font-semibold">Clip Properties</h3>
         <Button
           size="icon"
           variant="ghost"
-          className="w-6 h-6"
           onClick={onDelete}
           data-testid="button-delete-clip"
         >
-          <Trash2 className="w-3 h-3" />
+          <Trash2 className="w-4 h-4" />
         </Button>
       </div>
 
@@ -1337,6 +1342,58 @@ function ClipPropertiesPanel({
           />
         </div>
       </div>
+
+      {(clip.type === "video" || clip.type === "image") && (
+        <div className="border-t pt-4">
+          <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
+            <Layers className="w-3 h-3" /> Attached Effects
+          </h4>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Drop visualizers onto this clip to add effects
+          </p>
+          {effects.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No effects attached</p>
+          ) : (
+            <div className="space-y-2">
+              {effects.map((effect) => (
+                <div 
+                  key={effect.id}
+                  className={cn(
+                    "flex items-center gap-2 p-2 rounded-md border",
+                    effect.enabled ? "bg-muted/50" : "bg-muted/20 opacity-60"
+                  )}
+                  data-testid={`effect-item-${effect.id}`}
+                >
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onToggleEffect?.(clip.id, effect.id)}
+                    data-testid={`button-toggle-effect-${effect.id}`}
+                  >
+                    {effect.enabled ? (
+                      <Eye className="w-3 h-3" />
+                    ) : (
+                      <EyeOff className="w-3 h-3" />
+                    )}
+                  </Button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{effect.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{effect.visualizationType}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => onRemoveEffect?.(clip.id, effect.id)}
+                    data-testid={`button-remove-effect-${effect.id}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1771,6 +1828,8 @@ export default function Editor() {
               onSplit={() => splitClip(selectedClip.id, state.playhead)}
               onDelete={deleteSelectedClip}
               playhead={state.playhead}
+              onToggleEffect={toggleEffectEnabled}
+              onRemoveEffect={removeEffectFromClip}
             />
           </aside>
         )}
