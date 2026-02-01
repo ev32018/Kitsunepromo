@@ -110,6 +110,11 @@ Kitsune Promo is a professional audio visualization web application that creates
     - Filters: brightness, contrast, saturation, blur
     - Playback speed adjustment (0.25x to 4x)
   - Undo/redo history tracking for all timeline changes
+  - Audio/Video clip linking with synchronized speed changes
+  - Track reordering via drag-and-drop for layer control
+  - Visual effect overlays in preview (Glow/Bloom, Vignette, Blur, Color Overlay, etc.)
+  - 12 video effects: Glow/Bloom, Vignette, Blur, Color Overlay, Chromatic Aberration, Scanlines, Glitch, Film Grain, Wave Distortion, Pixelate, Mirror Effect, Kaleidoscope
+  - Synchronized scroll between track headers and timeline clips
 
 ## Tech Stack
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI

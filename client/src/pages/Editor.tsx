@@ -526,7 +526,7 @@ function TrackHeader({
   onMute: () => void;
   onLock: () => void;
   onDelete: () => void;
-  onReorder: (newOrder: number) => void;
+  onReorder: (draggedTrackId: string, newOrder: number) => void;
 }) {
   const icons: Record<TrackType, typeof Film> = {
     video: Film,
@@ -560,7 +560,7 @@ function TrackHeader({
     if (data) {
       const { trackId: draggedTrackId } = JSON.parse(data);
       if (draggedTrackId !== track.id) {
-        onReorder(track.order);
+        onReorder(draggedTrackId, track.order);
       }
     }
   };
@@ -2051,7 +2051,7 @@ export default function Editor() {
                       onMute={() => toggleTrackMute(track.id)}
                       onLock={() => toggleTrackLock(track.id)}
                       onDelete={() => removeTrack(track.id)}
-                      onReorder={(newOrder) => reorderTrack(track.id, newOrder)}
+                      onReorder={(draggedTrackId, newOrder) => reorderTrack(draggedTrackId, newOrder)}
                     />
                   ))}
                 </div>
@@ -2109,7 +2109,9 @@ export default function Editor() {
               clip={selectedClip}
               clips={state.clips}
               onUpdate={(updates) => {
-                if (updates.speed !== undefined && selectedClip.linkedClipId) {
+                const hasLinkedClip = selectedClip.linkedClipId;
+                const hasClipsLinkedToThis = state.clips.some(c => c.linkedClipId === selectedClip.id);
+                if (updates.speed !== undefined && (hasLinkedClip || hasClipsLinkedToThis)) {
                   updateClipWithLinked(selectedClip.id, updates);
                 } else {
                   updateClip(selectedClip.id, updates);
