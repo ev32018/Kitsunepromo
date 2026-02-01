@@ -40,6 +40,22 @@ export interface VisualizationSettings {
   rotationSpeed: number;
   colorIntensity: number;
   mirrorMode: boolean;
+  // Pro features
+  motionBlur?: boolean;
+  motionBlurIntensity?: number;
+  audioDucking?: boolean;
+  audioDuckingThreshold?: number;
+  bloomEnabled?: boolean;
+  bloomIntensity?: number;
+  peakHold?: boolean;
+  peakHoldDecay?: number;
+  // Custom frequency bands
+  bassStart?: number;
+  bassEnd?: number;
+  midStart?: number;
+  midEnd?: number;
+  trebleStart?: number;
+  trebleEnd?: number;
 }
 
 export interface VisualizationPreset {

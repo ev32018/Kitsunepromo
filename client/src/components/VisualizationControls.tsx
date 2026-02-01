@@ -9,6 +9,9 @@ import {
   Sun,
   RotateCw,
   FlipHorizontal2,
+  Zap,
+  Activity,
+  Gauge,
 } from "lucide-react";
 
 interface VisualizationControlsProps {
@@ -24,6 +27,19 @@ interface VisualizationControlsProps {
   onRotationSpeedChange: (value: number) => void;
   mirrorMode: boolean;
   onMirrorModeChange: (value: boolean) => void;
+  // New professional features
+  motionBlur?: boolean;
+  onMotionBlurChange?: (value: boolean) => void;
+  motionBlurIntensity?: number;
+  onMotionBlurIntensityChange?: (value: number) => void;
+  audioDucking?: boolean;
+  onAudioDuckingChange?: (value: boolean) => void;
+  bloomEnabled?: boolean;
+  onBloomEnabledChange?: (value: boolean) => void;
+  bloomIntensity?: number;
+  onBloomIntensityChange?: (value: number) => void;
+  peakHold?: boolean;
+  onPeakHoldChange?: (value: boolean) => void;
 }
 
 export function VisualizationControls({
@@ -39,6 +55,18 @@ export function VisualizationControls({
   onRotationSpeedChange,
   mirrorMode,
   onMirrorModeChange,
+  motionBlur = false,
+  onMotionBlurChange,
+  motionBlurIntensity = 0.3,
+  onMotionBlurIntensityChange,
+  audioDucking = false,
+  onAudioDuckingChange,
+  bloomEnabled = false,
+  onBloomEnabledChange,
+  bloomIntensity = 0.5,
+  onBloomIntensityChange,
+  peakHold = false,
+  onPeakHoldChange,
 }: VisualizationControlsProps) {
   return (
     <div className="space-y-4">
@@ -158,6 +186,106 @@ export function VisualizationControls({
             />
           </div>
         </Card>
+
+        <div className="pt-2 border-t border-border/50">
+          <h4 className="text-xs font-medium text-muted-foreground mb-3">Pro Features</h4>
+          
+          <div className="space-y-3">
+            <Card className="p-3 bg-card/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-xs">
+                  <Activity className="w-3 h-3" />
+                  Motion Blur
+                </Label>
+                <Switch
+                  checked={motionBlur}
+                  onCheckedChange={onMotionBlurChange}
+                  data-testid="switch-motion-blur"
+                />
+              </div>
+              {motionBlur && onMotionBlurIntensityChange && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Intensity</span>
+                    <span>{Math.round(motionBlurIntensity * 100)}%</span>
+                  </div>
+                  <Slider
+                    value={[motionBlurIntensity]}
+                    onValueChange={([v]) => onMotionBlurIntensityChange(v)}
+                    min={0.1}
+                    max={0.8}
+                    step={0.1}
+                    data-testid="slider-motion-blur"
+                  />
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-3 bg-card/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-xs">
+                  <Zap className="w-3 h-3" />
+                  Bloom Effect
+                </Label>
+                <Switch
+                  checked={bloomEnabled}
+                  onCheckedChange={onBloomEnabledChange}
+                  data-testid="switch-bloom"
+                />
+              </div>
+              {bloomEnabled && onBloomIntensityChange && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Intensity</span>
+                    <span>{Math.round(bloomIntensity * 100)}%</span>
+                  </div>
+                  <Slider
+                    value={[bloomIntensity]}
+                    onValueChange={([v]) => onBloomIntensityChange(v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-bloom"
+                  />
+                </div>
+              )}
+            </Card>
+
+            <Card className="p-3 bg-card/50">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-xs">
+                  <Volume2 className="w-3 h-3" />
+                  Audio Ducking
+                </Label>
+                <Switch
+                  checked={audioDucking}
+                  onCheckedChange={onAudioDuckingChange}
+                  data-testid="switch-ducking"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Dims visuals during quiet parts
+              </p>
+            </Card>
+
+            <Card className="p-3 bg-card/50">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-xs">
+                  <Gauge className="w-3 h-3" />
+                  Peak Hold
+                </Label>
+                <Switch
+                  checked={peakHold}
+                  onCheckedChange={onPeakHoldChange}
+                  data-testid="switch-peak-hold"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Shows peak level indicators
+              </p>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

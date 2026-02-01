@@ -56,6 +56,12 @@ export default function Home() {
   const [glowIntensity, setGlowIntensity] = useState(1);
   const [rotationSpeed, setRotationSpeed] = useState(0.5);
   const [mirrorMode, setMirrorMode] = useState(false);
+  const [motionBlur, setMotionBlur] = useState(false);
+  const [motionBlurIntensity, setMotionBlurIntensity] = useState(0.3);
+  const [audioDucking, setAudioDucking] = useState(false);
+  const [bloomEnabled, setBloomEnabled] = useState(false);
+  const [bloomIntensity, setBloomIntensity] = useState(0.5);
+  const [peakHold, setPeakHold] = useState(false);
   const [aiBackground, setAiBackground] = useState<string | null>(null);
   const [bpm, setBpm] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -308,7 +314,21 @@ export default function Home() {
     rotationSpeed,
     colorIntensity: 1,
     mirrorMode,
-  }), [sensitivity, barCount, particleCount, glowIntensity, rotationSpeed, mirrorMode]);
+    motionBlur,
+    motionBlurIntensity,
+    audioDucking,
+    audioDuckingThreshold: 0.5,
+    bloomEnabled,
+    bloomIntensity,
+    peakHold,
+    peakHoldDecay: 0.95,
+    bassStart: 0,
+    bassEnd: 10,
+    midStart: 10,
+    midEnd: 50,
+    trebleStart: 50,
+    trebleEnd: 100,
+  }), [sensitivity, barCount, particleCount, glowIntensity, rotationSpeed, mirrorMode, motionBlur, motionBlurIntensity, audioDucking, bloomEnabled, bloomIntensity, peakHold]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -474,6 +494,18 @@ export default function Home() {
                 onRotationSpeedChange={setRotationSpeed}
                 mirrorMode={mirrorMode}
                 onMirrorModeChange={setMirrorMode}
+                motionBlur={motionBlur}
+                onMotionBlurChange={setMotionBlur}
+                motionBlurIntensity={motionBlurIntensity}
+                onMotionBlurIntensityChange={setMotionBlurIntensity}
+                audioDucking={audioDucking}
+                onAudioDuckingChange={setAudioDucking}
+                bloomEnabled={bloomEnabled}
+                onBloomEnabledChange={setBloomEnabled}
+                bloomIntensity={bloomIntensity}
+                onBloomIntensityChange={setBloomIntensity}
+                peakHold={peakHold}
+                onPeakHoldChange={setPeakHold}
               />
 
               <Separator className="bg-border/50" />
@@ -762,6 +794,12 @@ export default function Home() {
                     glowIntensity={glowIntensity}
                     rotationSpeed={rotationSpeed}
                     mirrorMode={mirrorMode}
+                    motionBlur={motionBlur}
+                    motionBlurIntensity={motionBlurIntensity}
+                    audioDucking={audioDucking}
+                    bloomEnabled={bloomEnabled}
+                    bloomIntensity={bloomIntensity}
+                    peakHold={peakHold}
                     backgroundImage={aiBackground}
                     customImage={customImage}
                     imageEffects={imageEffects}

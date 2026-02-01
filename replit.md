@@ -68,6 +68,14 @@ Kitsune Promo is a professional audio visualization web application that creates
 - **Export Progress with ETA**: Real-time progress bar with estimated time remaining
 - **Drag-and-Drop Preset Reordering**: Organize saved presets via drag-and-drop
 - **Mobile Responsive Design**: Collapsible sidebar, touch-friendly UI, optimized for tablets and phones
+- **Pro Visual Features**:
+  - Motion Blur: Smooth trail effect for visualizations with adjustable intensity
+  - Audio Ducking: Automatically dims visuals during quiet audio sections
+  - Bloom/Glow: Post-processing bloom effect that responds to audio intensity
+  - Peak Hold: Visual peak level indicators on frequency bars
+  - Custom Frequency Bands: Configurable bass/mid/treble frequency ranges
+  - Smooth Transitions: Crossfade between visualization styles
+- **Performance Optimizations**: Frame rate throttling, canvas caching, optimized rendering loop
 
 ## Tech Stack
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI

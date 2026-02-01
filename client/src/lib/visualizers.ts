@@ -10,6 +10,22 @@ export interface VisualizerConfig {
   rotationSpeed: number;
   colorIntensity: number;
   mirrorMode: boolean;
+  // New professional features
+  motionBlur: boolean;
+  motionBlurIntensity: number;
+  audioDucking: boolean;
+  audioDuckingThreshold: number;
+  bloomEnabled: boolean;
+  bloomIntensity: number;
+  peakHold: boolean;
+  peakHoldDecay: number;
+  // Custom frequency bands
+  bassStart: number;
+  bassEnd: number;
+  midStart: number;
+  midEnd: number;
+  trebleStart: number;
+  trebleEnd: number;
 }
 
 const defaultConfig: VisualizerConfig = {
@@ -21,7 +37,65 @@ const defaultConfig: VisualizerConfig = {
   rotationSpeed: 0.5,
   colorIntensity: 1,
   mirrorMode: false,
+  // New professional features defaults
+  motionBlur: false,
+  motionBlurIntensity: 0.3,
+  audioDucking: false,
+  audioDuckingThreshold: 0.5,
+  bloomEnabled: false,
+  bloomIntensity: 0.5,
+  peakHold: false,
+  peakHoldDecay: 0.95,
+  // Default frequency bands (Hz ranges as percentages of spectrum)
+  bassStart: 0,
+  bassEnd: 10,
+  midStart: 10,
+  midEnd: 50,
+  trebleStart: 50,
+  trebleEnd: 100,
 };
+
+// Peak hold tracking
+let peakLevels: number[] = [];
+let lastPeakUpdate = 0;
+
+// Motion blur frame buffer
+let motionBlurCanvas: HTMLCanvasElement | null = null;
+let motionBlurCtx: CanvasRenderingContext2D | null = null;
+
+// Transition state for smooth visualization switching
+let transitionProgress = 1;
+let previousVisualizationType: string | null = null;
+let transitionStartTime = 0;
+const TRANSITION_DURATION = 500; // ms
+
+export function startVisualizationTransition(newType: string, oldType: string): void {
+  if (newType !== oldType) {
+    previousVisualizationType = oldType;
+    transitionProgress = 0;
+    transitionStartTime = Date.now();
+  }
+}
+
+export function updateTransition(): number {
+  if (transitionProgress < 1) {
+    const elapsed = Date.now() - transitionStartTime;
+    transitionProgress = Math.min(1, elapsed / TRANSITION_DURATION);
+    // Smooth easing
+    transitionProgress = transitionProgress < 0.5 
+      ? 2 * transitionProgress * transitionProgress 
+      : 1 - Math.pow(-2 * transitionProgress + 2, 2) / 2;
+  }
+  return transitionProgress;
+}
+
+export function getTransitionAlpha(): number {
+  return transitionProgress;
+}
+
+export function getPreviousVisualizationType(): string | null {
+  return transitionProgress < 1 ? previousVisualizationType : null;
+}
 
 export const colorSchemes: Record<ColorScheme, string[]> = {
   neon: ["#ff00ff", "#00ffff", "#ff0080", "#80ff00", "#0080ff"],
@@ -60,9 +134,19 @@ export function drawVisualization(
   const cfg = { ...defaultConfig, ...config };
   const colors = customColors && customColors.length > 0 ? customColors : colorSchemes[colorScheme];
   const { width, height } = canvas;
+  
+  // Calculate normalized audio levels for effects
+  const bassNorm = audioData.bassLevel / 255;
+  const midNorm = audioData.midLevel / 255;
+  const trebleNorm = audioData.trebleLevel / 255;
+  const avgNorm = (bassNorm + midNorm + trebleNorm) / 3;
 
   if (!skipBackgroundFill) {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+    // Motion blur effect: adjust fade based on intensity
+    const fadeAmount = cfg.motionBlur 
+      ? 0.05 + (1 - cfg.motionBlurIntensity) * 0.15 
+      : 0.15;
+    ctx.fillStyle = `rgba(0, 0, 0, ${fadeAmount})`;
     ctx.fillRect(0, 0, width, height);
   }
 
@@ -121,6 +205,69 @@ export function drawVisualization(
       drawEndlessMaze(ctx, canvas, audioData, colors, cfg);
       break;
   }
+  
+  // Apply audio ducking (reduce intensity during quiet parts)
+  if (cfg.audioDucking) {
+    const avgLevel = (audioData.bassLevel + audioData.midLevel + audioData.trebleLevel) / 3 / 255;
+    if (avgLevel < cfg.audioDuckingThreshold) {
+      const duckAmount = 1 - (avgLevel / cfg.audioDuckingThreshold);
+      ctx.globalAlpha = 0.3 + (1 - duckAmount) * 0.7;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalAlpha = 1;
+    }
+  }
+  
+  // Apply bloom/glow post-processing (audio-reactive)
+  if (cfg.bloomEnabled && cfg.bloomIntensity > 0) {
+    const audioBoost = 1 + avgNorm * 0.5; // Bloom increases with audio
+    applyBloom(ctx, canvas, cfg.bloomIntensity * audioBoost);
+  }
+  
+  // Update peak hold levels
+  if (cfg.peakHold) {
+    updatePeakLevels(audioData, cfg);
+  }
+}
+
+// Bloom post-processing effect - uses CSS filter for efficiency
+function applyBloom(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, intensity: number): void {
+  // Use canvas filter for efficient bloom (no pixel manipulation needed)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = intensity * 0.3;
+  ctx.filter = `blur(${Math.round(8 * intensity)}px) brightness(${1.2 + intensity * 0.3})`;
+  ctx.drawImage(canvas, 0, 0);
+  ctx.filter = 'none';
+  ctx.restore();
+}
+
+// Peak level tracking
+function updatePeakLevels(audioData: AudioData, config: VisualizerConfig): void {
+  const now = Date.now();
+  if (now - lastPeakUpdate > 16) { // ~60fps
+    lastPeakUpdate = now;
+    
+    // Ensure array is properly sized
+    const barCount = config.barCount;
+    if (peakLevels.length !== barCount) {
+      peakLevels = new Array(barCount).fill(0);
+    }
+    
+    const step = Math.floor(audioData.frequencyData.length / barCount);
+    for (let i = 0; i < barCount; i++) {
+      const value = audioData.frequencyData[i * step] * config.sensitivity;
+      if (value > peakLevels[i]) {
+        peakLevels[i] = value;
+      } else {
+        peakLevels[i] *= config.peakHoldDecay;
+      }
+    }
+  }
+}
+
+export function getPeakLevels(): number[] {
+  return peakLevels;
 }
 
 function drawBars(
@@ -156,6 +303,22 @@ function drawBars(
       ctx.fillRect(x, height / 2, barWidth, barHeight / 2);
     } else {
       ctx.fillRect(x, y, barWidth, barHeight);
+    }
+    
+    // Draw peak hold indicators
+    if (config.peakHold && peakLevels.length === barCount) {
+      const peakHeight = (peakLevels[i] / 255) * height * 0.8;
+      const peakY = height - peakHeight;
+      
+      ctx.fillStyle = colors[(colorIndex + 1) % colors.length];
+      ctx.shadowBlur = 0;
+      
+      if (config.mirrorMode) {
+        ctx.fillRect(x, height / 2 - peakHeight / 2 - 2, barWidth, 3);
+        ctx.fillRect(x, height / 2 + peakHeight / 2 - 1, barWidth, 3);
+      } else {
+        ctx.fillRect(x, peakY - 2, barWidth, 3);
+      }
     }
   }
   ctx.shadowBlur = 0;

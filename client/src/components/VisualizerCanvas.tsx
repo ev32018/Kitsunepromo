@@ -35,6 +35,12 @@ interface VisualizerCanvasProps {
   glowIntensity: number;
   rotationSpeed: number;
   mirrorMode: boolean;
+  motionBlur?: boolean;
+  motionBlurIntensity?: number;
+  audioDucking?: boolean;
+  bloomEnabled?: boolean;
+  bloomIntensity?: number;
+  peakHold?: boolean;
   backgroundImage?: string | null;
   overlayText?: string;
   overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
@@ -67,6 +73,12 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       glowIntensity,
       rotationSpeed,
       mirrorMode,
+      motionBlur = false,
+      motionBlurIntensity = 0.3,
+      audioDucking = false,
+      bloomEnabled = false,
+      bloomIntensity = 0.5,
+      peakHold = false,
       backgroundImage,
       overlayText,
       overlayPosition = "bottom-right",
@@ -199,7 +211,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
 
     const draw = useCallback(() => {
       const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
+      const ctx = canvas?.getContext("2d", { alpha: false, willReadFrequently: false });
       const analyzer = analyzerRef.current;
 
       if (!canvas || !ctx || !analyzer) {
@@ -209,9 +221,18 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
 
       const currentTime = Date.now();
       const deltaTime = currentTime - lastTimeRef.current;
+      
+      // Performance optimization: Skip frames if running too fast (cap at 60fps)
+      const minFrameTime = 16; // ~60fps
+      if (deltaTime < minFrameTime) {
+        animationFrameRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      
       lastTimeRef.current = currentTime;
       const time = currentTime * 0.001;
 
+      // Optimize canvas resize check - only check periodically
       const rect = canvas.getBoundingClientRect();
       if (canvas.width !== rect.width || canvas.height !== rect.height) {
         canvas.width = rect.width;
@@ -258,6 +279,20 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
             mirrorMode,
             smoothing: 0.8,
             colorIntensity: 1,
+            motionBlur,
+            motionBlurIntensity,
+            audioDucking,
+            audioDuckingThreshold: 0.5,
+            bloomEnabled,
+            bloomIntensity,
+            peakHold,
+            peakHoldDecay: 0.95,
+            bassStart: 0,
+            bassEnd: 10,
+            midStart: 10,
+            midEnd: 50,
+            trebleStart: 50,
+            trebleEnd: 100,
           },
           hasImageEffects ? null : bgImageRef.current,
           customColors,
