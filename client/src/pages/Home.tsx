@@ -35,7 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { VisualizationType, ColorScheme, VisualizationSettings } from "@shared/schema";
-import { Music, Waves, Maximize, Minimize, Keyboard } from "lucide-react";
+import { Music, Waves, Maximize, Minimize, Keyboard, X, Menu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -279,10 +279,29 @@ export default function Home() {
     mirrorMode,
   }), [sensitivity, barCount, particleCount, glowIntensity, rotationSpeed, mirrorMode]);
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="w-80 border-r border-border/50 bg-card/30 backdrop-blur-sm flex flex-col">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        
+        {/* Sidebar */}
+        <aside className={`
+          fixed lg:relative z-50 lg:z-auto
+          w-80 max-w-[85vw] lg:w-80
+          h-full lg:h-auto
+          border-r border-border/50 bg-card/95 lg:bg-card/30 backdrop-blur-sm 
+          flex flex-col
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:hidden'}
+        `}>
           <div className="p-4 border-b border-border/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -296,6 +315,16 @@ export default function Home() {
                   </p>
                 </div>
               </div>
+              {/* Close button for mobile */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                onClick={() => setSidebarOpen(false)}
+                data-testid="button-close-sidebar"
+              >
+                <X className="w-5 h-5" />
+              </Button>
               <Button
                 size="icon"
                 variant="ghost"
@@ -623,14 +652,35 @@ export default function Home() {
         </aside>
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-4 flex flex-col gap-4 h-full">
+          {/* Mobile header with menu toggle */}
+          <div className="lg:hidden p-3 border-b border-border/50 flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              data-testid="button-open-sidebar"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <Waves className="w-5 h-5 text-primary" />
+              <span className="font-semibold gradient-text">AudioViz</span>
+            </div>
+            {audioFile && (
+              <Badge variant="secondary" className="ml-auto text-xs truncate max-w-[150px]">
+                {audioFile.name}
+              </Badge>
+            )}
+          </div>
+          
+          <div className="p-2 sm:p-4 flex flex-col gap-2 sm:gap-4 h-full overflow-auto">
             <div 
               ref={containerRef}
-              className={`relative w-full max-h-[60vh] rounded-xl overflow-hidden border border-border/30 ${
+              className={`relative w-full max-h-[50vh] sm:max-h-[60vh] rounded-lg sm:rounded-xl overflow-hidden border border-border/30 ${
                 aspectRatioConfig.ratio === "16:9" ? "aspect-video" :
-                aspectRatioConfig.ratio === "9:16" ? "aspect-[9/16] max-w-[40%] mx-auto" :
-                aspectRatioConfig.ratio === "1:1" ? "aspect-square max-w-[60%] mx-auto" :
-                aspectRatioConfig.ratio === "4:5" ? "aspect-[4/5] max-w-[50%] mx-auto" :
+                aspectRatioConfig.ratio === "9:16" ? "aspect-[9/16] max-w-[60%] sm:max-w-[40%] mx-auto" :
+                aspectRatioConfig.ratio === "1:1" ? "aspect-square max-w-[80%] sm:max-w-[60%] mx-auto" :
+                aspectRatioConfig.ratio === "4:5" ? "aspect-[4/5] max-w-[70%] sm:max-w-[50%] mx-auto" :
                 "aspect-video"
               }`}
               style={{ backgroundColor: aspectRatioConfig.letterboxColor }}
