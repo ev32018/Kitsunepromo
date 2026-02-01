@@ -20,6 +20,8 @@ import { TemplateGallery, type Template } from "@/components/TemplateGallery";
 import { AudioTrimmer, defaultTrimConfig, type TrimConfig } from "@/components/AudioTrimmer";
 import { WatermarkSettings, defaultWatermarkConfig, type WatermarkConfig } from "@/components/WatermarkSettings";
 import { PerformanceSettings, defaultPerformanceConfig, type PerformanceConfig } from "@/components/PerformanceSettings";
+import { ThumbnailGenerator } from "@/components/ThumbnailGenerator";
+import { FadeSettings, type FadeConfig } from "@/components/FadeSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,16 @@ export default function Home() {
   const [trimConfig, setTrimConfig] = useState<TrimConfig>(defaultTrimConfig);
   const [watermarkConfig, setWatermarkConfig] = useState<WatermarkConfig>(defaultWatermarkConfig);
   const [performanceConfig, setPerformanceConfig] = useState<PerformanceConfig>(defaultPerformanceConfig);
+  const [fadeConfig, setFadeConfig] = useState<FadeConfig>({
+    introEnabled: false,
+    introDuration: 1.5,
+    introType: "fade",
+    outroEnabled: false,
+    outroDuration: 1.5,
+    outroType: "fade",
+    introColor: "#000000",
+    outroColor: "#000000",
+  });
   const [audioDuration, setAudioDuration] = useState(0);
 
   const visualizerRef = useRef<VisualizerCanvasHandle>(null);
@@ -454,6 +466,32 @@ export default function Home() {
                 config={performanceConfig}
                 onConfigChange={setPerformanceConfig}
               />
+
+              <Separator className="bg-border/50" />
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground/80">Intro/Outro Fades</h3>
+                <FadeSettings
+                  config={fadeConfig}
+                  onConfigChange={setFadeConfig}
+                />
+              </div>
+
+              <Separator className="bg-border/50" />
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground/80">Thumbnail Generator</h3>
+                <ThumbnailGenerator
+                  canvasRef={visualizerRef.current?.getCanvas() ?? null}
+                  audioDuration={audioDuration}
+                  audioElement={audioElement}
+                  onSeek={(time) => {
+                    if (audioElement) {
+                      audioElement.currentTime = time;
+                    }
+                  }}
+                />
+              </div>
 
               <Separator className="bg-border/50" />
 
