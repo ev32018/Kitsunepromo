@@ -89,6 +89,17 @@ Kitsune Promo is a professional audio visualization web application that creates
   - Playhead scrubbing and transport controls (play/pause/skip)
   - Zoom controls for timeline view
   - Media library panel with visualizer presets
+  - Real-time video preview with actual video playback, filter effects, trim offset support
+  - 8 Social Media Presets (TikTok/Instagram Reels):
+    - TikTok Drop: radialBurst, 15s, high contrast/brightness
+    - TikTok Chill: waveform, 30s, medium contrast
+    - TikTok Hype: particles, 10s, high saturation, 1.1x speed
+    - Reels Aesthetic: fluidWaves, 30s, vintage look, fade in/out
+    - Reels Dance: frequencyBars, 15s, warm colors, slow fade
+    - Reels Story: circular, 15s, high brightness, fade out
+    - Viral Hook: radialBurst, 3s, 1.2x speed, high brightness
+    - Loop Perfect: kaleidoscope, 6s, balanced settings
+  - Automatic video ref cleanup for deleted clips
   - Track controls: mute, lock, delete
   - Double-click to add clips to tracks
   - Clip Properties Panel with editing controls:
