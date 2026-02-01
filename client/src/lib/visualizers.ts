@@ -1136,6 +1136,28 @@ export interface ImageEffectSettings {
   scanlinesIntensity: number;
   vignette: boolean;
   vignetteIntensity: number;
+  // Creative effects
+  circleRotation: boolean;
+  circleRotationIntensity: number;
+  circleRotationCount: number;
+  rainMask: boolean;
+  rainMaskIntensity: number;
+  rainMaskSpeed: number;
+  sliceShift: boolean;
+  sliceShiftIntensity: number;
+  sliceShiftDirection: 'horizontal' | 'vertical' | 'both';
+  ripple: boolean;
+  rippleIntensity: number;
+  rippleSpeed: number;
+  pixelSort: boolean;
+  pixelSortIntensity: number;
+  tunnelZoom: boolean;
+  tunnelZoomIntensity: number;
+  shatter: boolean;
+  shatterIntensity: number;
+  shatterPieces: number;
+  liquidMorph: boolean;
+  liquidMorphIntensity: number;
 }
 
 let imageRotation = 0;
@@ -1356,6 +1378,287 @@ export function applyImageEffects(
     gradient.addColorStop(1, `rgba(0, 0, 0, ${0.4 + effects.vignetteIntensity * 0.5 + bassNorm * 0.1})`);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
+  }
+  
+  // Circle Rotation Effect - concentric circles rotating independently
+  if (effects.circleRotation) {
+    const circleCount = effects.circleRotationCount || 5;
+    const maxRadius = Math.max(width, height) * 0.7;
+    
+    ctx.save();
+    ctx.translate(width / 2, height / 2);
+    
+    for (let i = 0; i < circleCount; i++) {
+      const progress = (i + 1) / circleCount;
+      const innerRadius = maxRadius * (i / circleCount);
+      const outerRadius = maxRadius * progress;
+      const rotationSpeed = (i % 2 === 0 ? 1 : -1) * (0.5 + i * 0.3) * effects.circleRotationIntensity;
+      const angle = time * rotationSpeed + bassNorm * Math.PI * 0.5 * effects.circleRotationIntensity;
+      
+      ctx.save();
+      ctx.rotate(angle);
+      
+      ctx.beginPath();
+      ctx.arc(0, 0, outerRadius, 0, Math.PI * 2);
+      ctx.arc(0, 0, innerRadius, 0, Math.PI * 2, true);
+      ctx.clip();
+      
+      ctx.rotate(-angle);
+      ctx.drawImage(image, -width / 2, -height / 2, width, height);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  
+  // Rain Mask Effect - animated rain drops creating mask effect
+  if (effects.rainMask) {
+    ctx.save();
+    const dropCount = Math.floor(50 * effects.rainMaskIntensity);
+    const rainSpeed = effects.rainMaskSpeed || 0.5;
+    
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.globalAlpha = 0.3 * effects.rainMaskIntensity;
+    
+    for (let i = 0; i < dropCount; i++) {
+      const seed = i * 127.1;
+      const x = ((seed * 43758.5453) % 1) * width;
+      const baseY = ((time * rainSpeed * 200 + seed * 100) % (height + 100)) - 50;
+      const length = 20 + (avgNorm * 40) * effects.rainMaskIntensity;
+      const thickness = 2 + avgNorm * 3;
+      
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = thickness;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, baseY);
+      ctx.lineTo(x - 2, baseY + length);
+      ctx.stroke();
+    }
+    
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    
+    // Add rain overlay
+    ctx.save();
+    ctx.globalAlpha = 0.15 * effects.rainMaskIntensity;
+    ctx.fillStyle = '#88aaff';
+    
+    for (let i = 0; i < dropCount * 2; i++) {
+      const seed = i * 217.3;
+      const x = ((seed * 43758.5453) % 1) * width;
+      const baseY = ((time * rainSpeed * 300 + seed * 50) % (height + 50)) - 25;
+      const length = 15 + avgNorm * 30;
+      
+      ctx.fillRect(x, baseY, 1, length);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  
+  // Slice Shift Effect - horizontal/vertical slices that shift with audio
+  if (effects.sliceShift) {
+    const sliceCount = 12;
+    const direction = effects.sliceShiftDirection || 'horizontal';
+    
+    try {
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = new Uint32Array(imageData.data.buffer);
+      
+      if (direction === 'horizontal' || direction === 'both') {
+        const sliceHeight = Math.floor(height / sliceCount);
+        for (let i = 0; i < sliceCount; i++) {
+          const offset = Math.sin(time * 2 + i * 0.5) * midNorm * effects.sliceShiftIntensity * 30;
+          const intOffset = Math.floor(offset);
+          
+          for (let y = i * sliceHeight; y < (i + 1) * sliceHeight && y < height; y++) {
+            const rowStart = y * width;
+            const row = new Uint32Array(width);
+            for (let x = 0; x < width; x++) {
+              const srcX = (x - intOffset + width) % width;
+              row[x] = data[rowStart + srcX];
+            }
+            for (let x = 0; x < width; x++) {
+              data[rowStart + x] = row[x];
+            }
+          }
+        }
+      }
+      
+      if (direction === 'vertical' || direction === 'both') {
+        const sliceWidth = Math.floor(width / sliceCount);
+        for (let i = 0; i < sliceCount; i++) {
+          const offset = Math.cos(time * 2 + i * 0.5) * bassNorm * effects.sliceShiftIntensity * 30;
+          const intOffset = Math.floor(offset);
+          
+          for (let x = i * sliceWidth; x < (i + 1) * sliceWidth && x < width; x++) {
+            const col: number[] = [];
+            for (let y = 0; y < height; y++) {
+              col.push(data[y * width + x]);
+            }
+            for (let y = 0; y < height; y++) {
+              const srcY = (y - intOffset + height) % height;
+              data[y * width + x] = col[srcY];
+            }
+          }
+        }
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
+    } catch (e) {
+      // Ignore cross-origin errors
+    }
+  }
+  
+  // Water Ripple Effect - circular ripples emanating from center
+  if (effects.ripple) {
+    ctx.save();
+    const rippleCount = 5;
+    const speed = effects.rippleSpeed || 0.5;
+    
+    ctx.globalCompositeOperation = 'overlay';
+    
+    for (let i = 0; i < rippleCount; i++) {
+      const phase = (time * speed + i / rippleCount) % 1;
+      const radius = phase * Math.max(width, height) * 0.8;
+      const opacity = (1 - phase) * effects.rippleIntensity * 0.3 * (1 + bassNorm);
+      
+      ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+      ctx.lineWidth = 3 + bassNorm * 5;
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+  }
+  
+  // Pixel Sort Effect - audio-reactive pixel sorting glitch
+  if (effects.pixelSort) {
+    try {
+      const sortHeight = Math.floor(height * 0.1 * effects.pixelSortIntensity * (1 + bassNorm));
+      const startY = Math.floor((height - sortHeight) / 2 + Math.sin(time) * height * 0.2);
+      
+      if (sortHeight > 0 && startY >= 0 && startY + sortHeight <= height) {
+        const imageData = ctx.getImageData(0, startY, width, sortHeight);
+        const data = imageData.data;
+        
+        for (let y = 0; y < sortHeight; y++) {
+          const pixels: { brightness: number; r: number; g: number; b: number; a: number }[] = [];
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+            const brightness = (r + g + b) / 3;
+            pixels.push({ brightness, r, g, b, a });
+          }
+          
+          pixels.sort((a, b) => a.brightness - b.brightness);
+          
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            data[idx] = pixels[x].r;
+            data[idx + 1] = pixels[x].g;
+            data[idx + 2] = pixels[x].b;
+            data[idx + 3] = pixels[x].a;
+          }
+        }
+        
+        ctx.putImageData(imageData, 0, startY);
+      }
+    } catch (e) {
+      // Ignore cross-origin errors
+    }
+  }
+  
+  // Tunnel Zoom Effect - zooming tunnel through the image
+  if (effects.tunnelZoom) {
+    ctx.save();
+    ctx.translate(width / 2, height / 2);
+    
+    const layers = 8;
+    for (let i = layers - 1; i >= 0; i--) {
+      const phase = ((time * effects.tunnelZoomIntensity * 0.5 + i / layers) % 1);
+      const scale = 0.3 + phase * 1.5;
+      const opacity = (1 - phase * 0.7) * (1 + bassNorm * 0.5);
+      
+      ctx.save();
+      ctx.globalAlpha = opacity * 0.3;
+      ctx.scale(scale, scale);
+      ctx.drawImage(image, -width / 2, -height / 2, width, height);
+      ctx.restore();
+    }
+    
+    ctx.restore();
+  }
+  
+  // Shatter Effect - image broken into pieces that react to audio
+  if (effects.shatter) {
+    ctx.save();
+    const pieces = effects.shatterPieces || 12;
+    const angleStep = (Math.PI * 2) / pieces;
+    
+    for (let i = 0; i < pieces; i++) {
+      const angle = i * angleStep + time * 0.1;
+      const nextAngle = (i + 1) * angleStep + time * 0.1;
+      const displacement = bassNorm * effects.shatterIntensity * 20;
+      const rotation = Math.sin(time + i) * effects.shatterIntensity * 0.1 * avgNorm;
+      
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate(rotation);
+      
+      // Create pie slice clip
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, Math.max(width, height), angle, nextAngle);
+      ctx.closePath();
+      ctx.clip();
+      
+      // Displace this piece
+      const dx = Math.cos(angle + angleStep / 2) * displacement;
+      const dy = Math.sin(angle + angleStep / 2) * displacement;
+      ctx.translate(dx, dy);
+      
+      ctx.drawImage(image, -width / 2, -height / 2, width, height);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  
+  // Liquid Morph Effect - fluid-like distortion
+  if (effects.liquidMorph) {
+    try {
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const srcData = new Uint8ClampedArray(imageData.data);
+      const data = imageData.data;
+      const intensity = effects.liquidMorphIntensity;
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const offsetX = Math.sin(y * 0.02 + time * 2) * intensity * 15 * (1 + midNorm);
+          const offsetY = Math.cos(x * 0.02 + time * 1.5) * intensity * 15 * (1 + bassNorm);
+          
+          let srcX = Math.floor(x + offsetX);
+          let srcY = Math.floor(y + offsetY);
+          
+          srcX = Math.max(0, Math.min(width - 1, srcX));
+          srcY = Math.max(0, Math.min(height - 1, srcY));
+          
+          const dstIdx = (y * width + x) * 4;
+          const srcIdx = (srcY * width + srcX) * 4;
+          
+          data[dstIdx] = srcData[srcIdx];
+          data[dstIdx + 1] = srcData[srcIdx + 1];
+          data[dstIdx + 2] = srcData[srcIdx + 2];
+          data[dstIdx + 3] = srcData[srcIdx + 3];
+        }
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
+    } catch (e) {
+      // Ignore cross-origin errors
+    }
   }
   
   ctx.restore();

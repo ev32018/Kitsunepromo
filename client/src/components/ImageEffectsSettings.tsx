@@ -32,6 +32,28 @@ export interface ImageEffectSettings {
   scanlinesIntensity: number;
   vignette: boolean;
   vignetteIntensity: number;
+  // New creative effects
+  circleRotation: boolean;
+  circleRotationIntensity: number;
+  circleRotationCount: number;
+  rainMask: boolean;
+  rainMaskIntensity: number;
+  rainMaskSpeed: number;
+  sliceShift: boolean;
+  sliceShiftIntensity: number;
+  sliceShiftDirection: 'horizontal' | 'vertical' | 'both';
+  ripple: boolean;
+  rippleIntensity: number;
+  rippleSpeed: number;
+  pixelSort: boolean;
+  pixelSortIntensity: number;
+  tunnelZoom: boolean;
+  tunnelZoomIntensity: number;
+  shatter: boolean;
+  shatterIntensity: number;
+  shatterPieces: number;
+  liquidMorph: boolean;
+  liquidMorphIntensity: number;
 }
 
 interface ImageEffectsSettingsProps {
@@ -66,6 +88,28 @@ export const defaultImageEffects: ImageEffectSettings = {
   scanlinesIntensity: 0.3,
   vignette: false,
   vignetteIntensity: 0.5,
+  // New creative effects defaults
+  circleRotation: false,
+  circleRotationIntensity: 0.5,
+  circleRotationCount: 5,
+  rainMask: false,
+  rainMaskIntensity: 0.5,
+  rainMaskSpeed: 0.5,
+  sliceShift: false,
+  sliceShiftIntensity: 0.3,
+  sliceShiftDirection: 'horizontal',
+  ripple: false,
+  rippleIntensity: 0.4,
+  rippleSpeed: 0.5,
+  pixelSort: false,
+  pixelSortIntensity: 0.3,
+  tunnelZoom: false,
+  tunnelZoomIntensity: 0.4,
+  shatter: false,
+  shatterIntensity: 0.3,
+  shatterPieces: 12,
+  liquidMorph: false,
+  liquidMorphIntensity: 0.4,
 };
 
 export function ImageEffectsSettings({
@@ -435,6 +479,265 @@ export function ImageEffectsSettings({
                     max={1}
                     step={0.1}
                     data-testid="slider-vignette-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="border-t border-border/50 pt-3">
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Creative Effects</Label>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Circle Rotation</Label>
+                  <Switch
+                    checked={effects.circleRotation}
+                    onCheckedChange={(v) => updateEffect("circleRotation", v)}
+                    data-testid="switch-circle-rotation"
+                  />
+                </div>
+                {effects.circleRotation && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.circleRotationIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.circleRotationIntensity]}
+                      onValueChange={([v]) => updateEffect("circleRotationIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-circle-rotation-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Circles</span>
+                      <span>{effects.circleRotationCount}</span>
+                    </div>
+                    <Slider
+                      value={[effects.circleRotationCount]}
+                      onValueChange={([v]) => updateEffect("circleRotationCount", v)}
+                      min={2}
+                      max={10}
+                      step={1}
+                      data-testid="slider-circle-rotation-count"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Rain Mask</Label>
+                  <Switch
+                    checked={effects.rainMask}
+                    onCheckedChange={(v) => updateEffect("rainMask", v)}
+                    data-testid="switch-rain-mask"
+                  />
+                </div>
+                {effects.rainMask && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.rainMaskIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.rainMaskIntensity]}
+                      onValueChange={([v]) => updateEffect("rainMaskIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-rain-mask-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Speed</span>
+                      <span>{Math.round(effects.rainMaskSpeed * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.rainMaskSpeed]}
+                      onValueChange={([v]) => updateEffect("rainMaskSpeed", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-rain-mask-speed"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Slice Shift</Label>
+                  <Switch
+                    checked={effects.sliceShift}
+                    onCheckedChange={(v) => updateEffect("sliceShift", v)}
+                    data-testid="switch-slice-shift"
+                  />
+                </div>
+                {effects.sliceShift && (
+                  <div className="space-y-2">
+                    <Slider
+                      value={[effects.sliceShiftIntensity]}
+                      onValueChange={([v]) => updateEffect("sliceShiftIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-slice-shift-intensity"
+                    />
+                    <Select
+                      value={effects.sliceShiftDirection}
+                      onValueChange={(v) => updateEffect("sliceShiftDirection", v)}
+                    >
+                      <SelectTrigger className="h-7 text-xs" data-testid="select-slice-direction">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="horizontal">Horizontal</SelectItem>
+                        <SelectItem value="vertical">Vertical</SelectItem>
+                        <SelectItem value="both">Both</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Water Ripple</Label>
+                  <Switch
+                    checked={effects.ripple}
+                    onCheckedChange={(v) => updateEffect("ripple", v)}
+                    data-testid="switch-ripple"
+                  />
+                </div>
+                {effects.ripple && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.rippleIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.rippleIntensity]}
+                      onValueChange={([v]) => updateEffect("rippleIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-ripple-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Speed</span>
+                      <span>{Math.round(effects.rippleSpeed * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.rippleSpeed]}
+                      onValueChange={([v]) => updateEffect("rippleSpeed", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-ripple-speed"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Pixel Sort</Label>
+                  <Switch
+                    checked={effects.pixelSort}
+                    onCheckedChange={(v) => updateEffect("pixelSort", v)}
+                    data-testid="switch-pixel-sort"
+                  />
+                </div>
+                {effects.pixelSort && (
+                  <Slider
+                    value={[effects.pixelSortIntensity]}
+                    onValueChange={([v]) => updateEffect("pixelSortIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-pixel-sort-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Tunnel Zoom</Label>
+                  <Switch
+                    checked={effects.tunnelZoom}
+                    onCheckedChange={(v) => updateEffect("tunnelZoom", v)}
+                    data-testid="switch-tunnel-zoom"
+                  />
+                </div>
+                {effects.tunnelZoom && (
+                  <Slider
+                    value={[effects.tunnelZoomIntensity]}
+                    onValueChange={([v]) => updateEffect("tunnelZoomIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-tunnel-zoom-intensity"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Shatter</Label>
+                  <Switch
+                    checked={effects.shatter}
+                    onCheckedChange={(v) => updateEffect("shatter", v)}
+                    data-testid="switch-shatter"
+                  />
+                </div>
+                {effects.shatter && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Intensity</span>
+                      <span>{Math.round(effects.shatterIntensity * 100)}%</span>
+                    </div>
+                    <Slider
+                      value={[effects.shatterIntensity]}
+                      onValueChange={([v]) => updateEffect("shatterIntensity", v)}
+                      min={0.1}
+                      max={1}
+                      step={0.1}
+                      data-testid="slider-shatter-intensity"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Pieces</span>
+                      <span>{effects.shatterPieces}</span>
+                    </div>
+                    <Slider
+                      value={[effects.shatterPieces]}
+                      onValueChange={([v]) => updateEffect("shatterPieces", v)}
+                      min={4}
+                      max={24}
+                      step={1}
+                      data-testid="slider-shatter-pieces"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Liquid Morph</Label>
+                  <Switch
+                    checked={effects.liquidMorph}
+                    onCheckedChange={(v) => updateEffect("liquidMorph", v)}
+                    data-testid="switch-liquid-morph"
+                  />
+                </div>
+                {effects.liquidMorph && (
+                  <Slider
+                    value={[effects.liquidMorphIntensity]}
+                    onValueChange={([v]) => updateEffect("liquidMorphIntensity", v)}
+                    min={0.1}
+                    max={1}
+                    step={0.1}
+                    data-testid="slider-liquid-morph-intensity"
                   />
                 )}
               </div>
