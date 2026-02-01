@@ -36,8 +36,12 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { VisualizationType, ColorScheme, VisualizationSettings } from "@shared/schema";
-import { Music, Waves, Maximize, Minimize, Keyboard, X, Menu } from "lucide-react";
+import { visualizationTypes, colorSchemes } from "@shared/schema";
+import { Music, Waves, Maximize, Minimize, Keyboard, X, Menu, Shuffle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AudioLevelMeter } from "@/components/AudioLevelMeter";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { QuickStartGuide } from "@/components/QuickStartGuide";
 
 export default function Home() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -305,6 +309,25 @@ export default function Home() {
     toast({ title: "Template applied", description: `"${template.name}" settings loaded.` });
   }, [toast]);
 
+  const randomizeSettings = useCallback(() => {
+    const randomViz = visualizationTypes[Math.floor(Math.random() * visualizationTypes.length)];
+    const randomColor = colorSchemes[Math.floor(Math.random() * colorSchemes.length)];
+    
+    setVisualizationType(randomViz);
+    setColorScheme(randomColor);
+    setSensitivity(0.5 + Math.random() * 2);
+    setBarCount(Math.floor(32 + Math.random() * 96));
+    setParticleCount(Math.floor(50 + Math.random() * 200));
+    setGlowIntensity(0.3 + Math.random() * 1.2);
+    setRotationSpeed(Math.random() * 2);
+    setMirrorMode(Math.random() > 0.5);
+    setMotionBlur(Math.random() > 0.6);
+    setBloomEnabled(Math.random() > 0.5);
+    setPeakHold(Math.random() > 0.5);
+    
+    toast({ title: "Randomized!", description: "Fresh visualization settings applied." });
+  }, [toast]);
+
   const getCurrentSettings = useCallback((): VisualizationSettings => ({
     sensitivity,
     smoothing: 0.8,
@@ -367,24 +390,27 @@ export default function Home() {
                 </div>
               </div>
               {/* Close button for mobile */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                onClick={() => setSidebarOpen(false)}
-                data-testid="button-close-sidebar"
-              >
-                <X className="w-5 h-5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => setShowShortcuts(prev => !prev)}
-                className="h-8 w-8"
-                data-testid="button-shortcuts"
-              >
-                <Keyboard className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setShowShortcuts(prev => !prev)}
+                  className="h-8 w-8"
+                  data-testid="button-shortcuts"
+                >
+                  <Keyboard className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  onClick={() => setSidebarOpen(false)}
+                  data-testid="button-close-sidebar"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
             </div>
             {showShortcuts && (
               <div className="mt-3 p-3 bg-muted/50 rounded-lg text-xs space-y-1">
@@ -461,10 +487,24 @@ export default function Home() {
 
               <Separator className="bg-border/50" />
 
-              <VisualizationStylePicker
-                value={visualizationType}
-                onChange={setVisualizationType}
-              />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1">
+                  <VisualizationStylePicker
+                    value={visualizationType}
+                    onChange={setVisualizationType}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={randomizeSettings}
+                  className="shrink-0"
+                  data-testid="button-randomize"
+                >
+                  <Shuffle className="w-4 h-4 mr-2" />
+                  Randomize
+                </Button>
+              </div>
 
               <Separator className="bg-border/50" />
 
@@ -841,16 +881,33 @@ export default function Home() {
             </div>
 
             <div className="w-full">
-              <AudioPlayer
-                audioUrl={audioUrl}
-                onAudioElement={handleAudioElement}
-                onPlayStateChange={handlePlayStateChange}
-                onBpmDetected={setBpm}
-              />
+              <div className="flex flex-col sm:flex-row items-stretch gap-2">
+                <div className="flex-1">
+                  <AudioPlayer
+                    audioUrl={audioUrl}
+                    onAudioElement={handleAudioElement}
+                    onPlayStateChange={handlePlayStateChange}
+                    onBpmDetected={setBpm}
+                  />
+                </div>
+                {audioElement && (
+                  <AudioLevelMeter
+                    audioElement={audioElement}
+                    isPlaying={isPlaying}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </main>
       </div>
+      
+      {!audioFile && (
+        <QuickStartGuide
+          onDismiss={() => {}}
+          hasAudio={!!audioFile}
+        />
+      )}
     </div>
   );
 }
