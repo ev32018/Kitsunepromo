@@ -144,9 +144,9 @@ export default function Home() {
         </ScrollArea>
       </aside>
 
-      <main className="flex-1 flex flex-col">
-        <div className="flex-1 p-6 flex flex-col">
-          <div className="flex-1 rounded-xl overflow-hidden border border-border/30 bg-black/50 relative">
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 p-6 flex flex-col items-center justify-center">
+          <div className="w-full max-w-4xl aspect-video rounded-xl overflow-hidden border border-border/30 bg-black/50 relative">
             {audioUrl ? (
               <VisualizerCanvas
                 ref={visualizerRef}
@@ -181,7 +181,7 @@ export default function Home() {
             )}
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 w-full max-w-4xl">
             <AudioPlayer
               audioUrl={audioUrl}
               onAudioElement={handleAudioElement}
