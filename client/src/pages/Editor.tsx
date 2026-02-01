@@ -936,8 +936,11 @@ function MediaLibrary({
           <div>
             <h3 className="text-sm font-semibold mb-2 text-primary flex items-center gap-2">
               <Zap className="w-4 h-4" />
-              TikTok & Reels Presets
+              Visual Overlays
             </h3>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Drag to add animated overlays on top of your video
+            </p>
             <div className="space-y-1">
               {socialMediaPresets.map((preset) => (
                 <div
@@ -970,7 +973,10 @@ function MediaLibrary({
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold mb-2">Visualizer Presets</h3>
+            <h3 className="text-sm font-semibold mb-2">Audio Visualizers</h3>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Animated graphics that react to audio
+            </p>
             <div className="space-y-1">
               {visualizerPresets.map((item, i) => (
                 <div
@@ -1131,8 +1137,11 @@ function ClipPropertiesPanel({
 
       <div className="border-t pt-4">
         <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
-          <Sun className="w-3 h-3" /> Filters
+          <Sun className="w-3 h-3" /> Video Effects
         </h4>
+        <p className="text-[10px] text-muted-foreground mb-3">
+          Apply effects to the selected clip
+        </p>
         <div className="space-y-3">
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -1325,13 +1334,30 @@ export default function Editor() {
     const track = state.tracks.find((t) => t.id === trackId);
     if (!track || track.locked) return;
     
+    // Validate clip type matches track type
+    const isCompatible = (
+      (track.type === "video" && (data.type === "video" || data.type === "image")) ||
+      (track.type === "audio" && data.type === "audio") ||
+      (track.type === "visualizer" && data.type === "visualizer")
+    );
+    
+    if (!isCompatible) {
+      // Auto-create correct track instead of rejecting
+      addClipWithAutoTrack(data.type, startTime, data.duration || 5, data.name, {
+        visualizationType: data.visualizationType as VisualizationType,
+        mediaUrl: data.mediaUrl,
+        ...data.clipSettings,
+      });
+      return;
+    }
+    
     const clipDuration = data.duration || 5;
     addClip(trackId, data.type, startTime, clipDuration, data.name, {
       visualizationType: data.visualizationType as VisualizationType,
       mediaUrl: data.mediaUrl,
       ...data.clipSettings,
     });
-  }, [state.tracks, addClip]);
+  }, [state.tracks, addClip, addClipWithAutoTrack]);
 
   const selectedClip = state.clips.find((c) => c.id === state.selectedClipId);
 
