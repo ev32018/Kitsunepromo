@@ -1383,75 +1383,142 @@ export function applyImageEffects(
   // Circle Rotation Effect - concentric circles rotating independently
   if (effects.circleRotation) {
     const circleCount = effects.circleRotationCount || 5;
-    const maxRadius = Math.max(width, height) * 0.7;
+    const maxRadius = Math.max(width, height) * 0.8;
     
+    // Create a temporary canvas for the original image
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d')!;
+    tempCtx.drawImage(image, 0, 0, width, height);
+    
+    // Clear the main canvas area where we'll draw
     ctx.save();
-    ctx.translate(width / 2, height / 2);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
     
-    for (let i = 0; i < circleCount; i++) {
-      const progress = (i + 1) / circleCount;
-      const innerRadius = maxRadius * (i / circleCount);
-      const outerRadius = maxRadius * progress;
-      const rotationSpeed = (i % 2 === 0 ? 1 : -1) * (0.5 + i * 0.3) * effects.circleRotationIntensity;
-      const angle = time * rotationSpeed + bassNorm * Math.PI * 0.5 * effects.circleRotationIntensity;
+    // Draw each ring from outer to inner
+    for (let i = circleCount - 1; i >= 0; i--) {
+      const outerRadius = maxRadius * ((i + 1) / circleCount);
+      const innerRadius = i === 0 ? 0 : maxRadius * (i / circleCount);
+      
+      // Alternate rotation direction and vary speed per ring
+      const direction = i % 2 === 0 ? 1 : -1;
+      const speedMultiplier = 0.3 + (i * 0.15);
+      const audioReactive = bassNorm * effects.circleRotationIntensity * 0.5;
+      const angle = (time * speedMultiplier * direction * effects.circleRotationIntensity) + (audioReactive * direction);
       
       ctx.save();
-      ctx.rotate(angle);
+      ctx.translate(width / 2, height / 2);
       
+      // Create ring-shaped clipping path
       ctx.beginPath();
       ctx.arc(0, 0, outerRadius, 0, Math.PI * 2);
-      ctx.arc(0, 0, innerRadius, 0, Math.PI * 2, true);
+      if (innerRadius > 0) {
+        ctx.arc(0, 0, innerRadius, 0, Math.PI * 2, true);
+      }
       ctx.clip();
       
-      ctx.rotate(-angle);
-      ctx.drawImage(image, -width / 2, -height / 2, width, height);
+      // Rotate and draw the image for this ring
+      ctx.rotate(angle);
+      ctx.drawImage(tempCanvas, -width / 2, -height / 2, width, height);
+      
       ctx.restore();
     }
     ctx.restore();
   }
   
-  // Rain Mask Effect - animated rain drops creating mask effect
+  // Rain Mask Effect - realistic animated rain drops
   if (effects.rainMask) {
     ctx.save();
-    const dropCount = Math.floor(50 * effects.rainMaskIntensity);
-    const rainSpeed = effects.rainMaskSpeed || 0.5;
+    const baseDropCount = 150;
+    const dropCount = Math.floor(baseDropCount * effects.rainMaskIntensity);
+    const rainSpeed = (effects.rainMaskSpeed || 0.5) * 400;
     
-    ctx.globalCompositeOperation = 'destination-out';
+    // Layer 1: Background rain (smaller, faster, more transparent)
     ctx.globalAlpha = 0.3 * effects.rainMaskIntensity;
-    
     for (let i = 0; i < dropCount; i++) {
-      const seed = i * 127.1;
-      const x = ((seed * 43758.5453) % 1) * width;
-      const baseY = ((time * rainSpeed * 200 + seed * 100) % (height + 100)) - 50;
-      const length = 20 + (avgNorm * 40) * effects.rainMaskIntensity;
-      const thickness = 2 + avgNorm * 3;
+      // Use pseudo-random positioning based on index
+      const seed1 = Math.sin(i * 127.1) * 43758.5453;
+      const seed2 = Math.cos(i * 269.5) * 7919.0;
+      const x = (((seed1 % 1) + 1) % 1) * width;
+      const speedVariation = 0.8 + (((seed2 % 1) + 1) % 1) * 0.4;
+      const startOffset = (((Math.sin(i * 43.7) * 12345.6) % 1) + 1) % 1;
       
-      ctx.strokeStyle = 'white';
-      ctx.lineWidth = thickness;
+      // Calculate Y position with looping
+      const totalDistance = height + 100;
+      const baseY = ((time * rainSpeed * speedVariation + startOffset * totalDistance) % totalDistance) - 50;
+      
+      // Rain drop properties
+      const dropLength = 15 + avgNorm * 25;
+      const dropWidth = 1;
+      
+      // Draw rain drop as a gradient line
+      const gradient = ctx.createLinearGradient(x, baseY, x, baseY + dropLength);
+      gradient.addColorStop(0, 'rgba(200, 220, 255, 0)');
+      gradient.addColorStop(0.3, 'rgba(200, 220, 255, 0.6)');
+      gradient.addColorStop(1, 'rgba(200, 220, 255, 0.9)');
+      
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = dropWidth;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(x, baseY);
-      ctx.lineTo(x - 2, baseY + length);
+      ctx.lineTo(x - 1, baseY + dropLength);
       ctx.stroke();
     }
     
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
-    ctx.restore();
-    
-    // Add rain overlay
-    ctx.save();
-    ctx.globalAlpha = 0.15 * effects.rainMaskIntensity;
-    ctx.fillStyle = '#88aaff';
-    
-    for (let i = 0; i < dropCount * 2; i++) {
-      const seed = i * 217.3;
-      const x = ((seed * 43758.5453) % 1) * width;
-      const baseY = ((time * rainSpeed * 300 + seed * 50) % (height + 50)) - 25;
-      const length = 15 + avgNorm * 30;
+    // Layer 2: Foreground rain (larger, slower, more visible)
+    ctx.globalAlpha = 0.5 * effects.rainMaskIntensity;
+    const foregroundDrops = Math.floor(dropCount * 0.3);
+    for (let i = 0; i < foregroundDrops; i++) {
+      const seed1 = Math.sin(i * 317.9) * 23456.7;
+      const seed2 = Math.cos(i * 419.3) * 8761.2;
+      const x = (((seed1 % 1) + 1) % 1) * width;
+      const speedVariation = 0.6 + (((seed2 % 1) + 1) % 1) * 0.3;
+      const startOffset = (((Math.sin(i * 73.1) * 54321.0) % 1) + 1) % 1;
       
-      ctx.fillRect(x, baseY, 1, length);
+      const totalDistance = height + 150;
+      const baseY = ((time * rainSpeed * 0.7 * speedVariation + startOffset * totalDistance) % totalDistance) - 75;
+      
+      const dropLength = 30 + avgNorm * 40 + bassNorm * 20;
+      const dropWidth = 2;
+      
+      const gradient = ctx.createLinearGradient(x, baseY, x, baseY + dropLength);
+      gradient.addColorStop(0, 'rgba(180, 200, 255, 0)');
+      gradient.addColorStop(0.2, 'rgba(180, 200, 255, 0.4)');
+      gradient.addColorStop(1, 'rgba(220, 235, 255, 0.8)');
+      
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = dropWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, baseY);
+      ctx.lineTo(x - 2, baseY + dropLength);
+      ctx.stroke();
     }
+    
+    // Layer 3: Splash effects at bottom
+    ctx.globalAlpha = 0.4 * effects.rainMaskIntensity;
+    const splashCount = Math.floor(dropCount * 0.15);
+    for (let i = 0; i < splashCount; i++) {
+      const seed = Math.sin(i * 547.3 + time * 2) * 98765.4;
+      const x = (((seed % 1) + 1) % 1) * width;
+      const splashPhase = ((time * 3 + i * 0.7) % 1);
+      
+      if (splashPhase < 0.3) {
+        const splashSize = splashPhase * 15 * effects.rainMaskIntensity;
+        const splashY = height - 10 - Math.random() * 20;
+        const opacity = (0.3 - splashPhase) / 0.3;
+        
+        ctx.strokeStyle = `rgba(200, 220, 255, ${opacity * 0.5})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(x, splashY, splashSize, Math.PI, 2 * Math.PI);
+        ctx.stroke();
+      }
+    }
+    
     ctx.globalAlpha = 1;
     ctx.restore();
   }
@@ -1534,38 +1601,67 @@ export function applyImageEffects(
     ctx.restore();
   }
   
-  // Pixel Sort Effect - audio-reactive pixel sorting glitch
+  // Pixel Sort Effect - audio-reactive pixel sorting glitch with threshold-based segments
   if (effects.pixelSort) {
     try {
-      const sortHeight = Math.floor(height * 0.1 * effects.pixelSortIntensity * (1 + bassNorm));
-      const startY = Math.floor((height - sortHeight) / 2 + Math.sin(time) * height * 0.2);
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
       
-      if (sortHeight > 0 && startY >= 0 && startY + sortHeight <= height) {
-        const imageData = ctx.getImageData(0, startY, width, sortHeight);
-        const data = imageData.data;
+      // Brightness threshold for sorting - pixels above this get sorted
+      const threshold = 80 + (1 - effects.pixelSortIntensity) * 120;
+      // How many rows to affect
+      const affectedRows = Math.floor(height * 0.4 * effects.pixelSortIntensity * (0.5 + bassNorm * 0.5));
+      // Starting position oscillates with audio
+      const startY = Math.floor(height * 0.3 + Math.sin(time * 0.5) * height * 0.15);
+      
+      for (let y = startY; y < Math.min(startY + affectedRows, height); y++) {
+        // Find segments of bright pixels to sort
+        let segmentStart = -1;
         
-        for (let y = 0; y < sortHeight; y++) {
-          const pixels: { brightness: number; r: number; g: number; b: number; a: number }[] = [];
-          for (let x = 0; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
-            const brightness = (r + g + b) / 3;
-            pixels.push({ brightness, r, g, b, a });
-          }
+        for (let x = 0; x <= width; x++) {
+          const idx = (y * width + x) * 4;
+          const brightness = x < width ? (data[idx] + data[idx + 1] + data[idx + 2]) / 3 : 0;
           
-          pixels.sort((a, b) => a.brightness - b.brightness);
-          
-          for (let x = 0; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            data[idx] = pixels[x].r;
-            data[idx + 1] = pixels[x].g;
-            data[idx + 2] = pixels[x].b;
-            data[idx + 3] = pixels[x].a;
+          if (brightness > threshold && segmentStart === -1) {
+            // Start new segment
+            segmentStart = x;
+          } else if ((brightness <= threshold || x === width) && segmentStart !== -1) {
+            // End segment and sort it
+            const segmentLength = x - segmentStart;
+            
+            if (segmentLength > 3) { // Only sort segments with enough pixels
+              const pixels: { brightness: number; r: number; g: number; b: number; a: number }[] = [];
+              
+              for (let sx = segmentStart; sx < x; sx++) {
+                const sIdx = (y * width + sx) * 4;
+                pixels.push({
+                  brightness: (data[sIdx] + data[sIdx + 1] + data[sIdx + 2]) / 3,
+                  r: data[sIdx],
+                  g: data[sIdx + 1],
+                  b: data[sIdx + 2],
+                  a: data[sIdx + 3]
+                });
+              }
+              
+              // Sort by brightness (creates the pixel sort glitch effect)
+              pixels.sort((a, b) => a.brightness - b.brightness);
+              
+              // Write sorted pixels back
+              for (let sx = 0; sx < pixels.length; sx++) {
+                const sIdx = (y * width + (segmentStart + sx)) * 4;
+                data[sIdx] = pixels[sx].r;
+                data[sIdx + 1] = pixels[sx].g;
+                data[sIdx + 2] = pixels[sx].b;
+                data[sIdx + 3] = pixels[sx].a;
+              }
+            }
+            
+            segmentStart = -1;
           }
         }
-        
-        ctx.putImageData(imageData, 0, startY);
       }
+      
+      ctx.putImageData(imageData, 0, 0);
     } catch (e) {
       // Ignore cross-origin errors
     }
@@ -1594,33 +1690,63 @@ export function applyImageEffects(
   
   // Shatter Effect - image broken into pieces that react to audio
   if (effects.shatter) {
+    // Create a temporary canvas with the original image
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d')!;
+    tempCtx.drawImage(image, 0, 0, width, height);
+    
+    // Clear the canvas with black background for visible gaps
     ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+    
     const pieces = effects.shatterPieces || 12;
     const angleStep = (Math.PI * 2) / pieces;
     
+    // Base displacement that's always visible, plus audio-reactive component
+    const baseDisplacement = 15 * effects.shatterIntensity;
+    const audioDisplacement = bassNorm * effects.shatterIntensity * 50;
+    const totalDisplacement = baseDisplacement + audioDisplacement;
+    
     for (let i = 0; i < pieces; i++) {
-      const angle = i * angleStep + time * 0.1;
-      const nextAngle = (i + 1) * angleStep + time * 0.1;
-      const displacement = bassNorm * effects.shatterIntensity * 20;
-      const rotation = Math.sin(time + i) * effects.shatterIntensity * 0.1 * avgNorm;
+      const angle = i * angleStep;
+      const nextAngle = (i + 1) * angleStep;
+      
+      // Each piece has its own slight rotation
+      const pieceRotation = Math.sin(time * 0.5 + i * 0.7) * effects.shatterIntensity * 0.15 * (0.5 + avgNorm);
+      
+      // Displacement direction from center
+      const midAngle = angle + angleStep / 2;
+      const dx = Math.cos(midAngle) * totalDisplacement;
+      const dy = Math.sin(midAngle) * totalDisplacement;
       
       ctx.save();
       ctx.translate(width / 2, height / 2);
-      ctx.rotate(rotation);
       
-      // Create pie slice clip
+      // Create pie slice clip path
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, Math.max(width, height), angle, nextAngle);
       ctx.closePath();
       ctx.clip();
       
-      // Displace this piece
-      const dx = Math.cos(angle + angleStep / 2) * displacement;
-      const dy = Math.sin(angle + angleStep / 2) * displacement;
+      // Apply displacement and rotation for this piece
       ctx.translate(dx, dy);
+      ctx.rotate(pieceRotation);
       
-      ctx.drawImage(image, -width / 2, -height / 2, width, height);
+      // Draw the image piece
+      ctx.drawImage(tempCanvas, -width / 2, -height / 2, width, height);
+      
+      // Add a subtle edge highlight to make pieces more visible
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 * effects.shatterIntensity})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(angle - pieceRotation) * Math.max(width, height), Math.sin(angle - pieceRotation) * Math.max(width, height));
+      ctx.stroke();
+      
       ctx.restore();
     }
     ctx.restore();
