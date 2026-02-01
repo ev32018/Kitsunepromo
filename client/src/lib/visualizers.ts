@@ -1382,50 +1382,70 @@ export function applyImageEffects(
   
   // Circle Rotation Effect - concentric circles rotating independently
   if (effects.circleRotation) {
-    const circleCount = effects.circleRotationCount || 5;
-    const maxRadius = Math.max(width, height) * 0.8;
-    
-    // Create a temporary canvas for the original image
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = width;
-    tempCanvas.height = height;
-    const tempCtx = tempCanvas.getContext('2d')!;
-    tempCtx.drawImage(image, 0, 0, width, height);
-    
-    // Clear the main canvas area where we'll draw
-    ctx.save();
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Draw each ring from outer to inner
-    for (let i = circleCount - 1; i >= 0; i--) {
-      const outerRadius = maxRadius * ((i + 1) / circleCount);
-      const innerRadius = i === 0 ? 0 : maxRadius * (i / circleCount);
+    try {
+      const circleCount = effects.circleRotationCount || 5;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const maxRadius = Math.sqrt(centerX * centerX + centerY * centerY);
       
-      // Alternate rotation direction and vary speed per ring
-      const direction = i % 2 === 0 ? 1 : -1;
-      const speedMultiplier = 0.3 + (i * 0.15);
-      const audioReactive = bassNorm * effects.circleRotationIntensity * 0.5;
-      const angle = (time * speedMultiplier * direction * effects.circleRotationIntensity) + (audioReactive * direction);
+      // Get current canvas content as source
+      const sourceData = ctx.getImageData(0, 0, width, height);
+      const srcPixels = sourceData.data;
       
-      ctx.save();
-      ctx.translate(width / 2, height / 2);
+      // Create output buffer
+      const outputData = ctx.createImageData(width, height);
+      const outPixels = outputData.data;
       
-      // Create ring-shaped clipping path
-      ctx.beginPath();
-      ctx.arc(0, 0, outerRadius, 0, Math.PI * 2);
-      if (innerRadius > 0) {
-        ctx.arc(0, 0, innerRadius, 0, Math.PI * 2, true);
+      // Pre-calculate ring angles
+      const ringAngles: number[] = [];
+      for (let ring = 0; ring < circleCount; ring++) {
+        const direction = ring % 2 === 0 ? 1 : -1;
+        const speedMultiplier = 0.2 + (ring * 0.12);
+        const audioBoost = bassNorm * effects.circleRotationIntensity * 0.3;
+        ringAngles[ring] = (time * speedMultiplier * direction * effects.circleRotationIntensity) + (audioBoost * direction);
       }
-      ctx.clip();
       
-      // Rotate and draw the image for this ring
-      ctx.rotate(angle);
-      ctx.drawImage(tempCanvas, -width / 2, -height / 2, width, height);
+      // Process each pixel
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          // Calculate distance from center
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          // Determine which ring this pixel belongs to
+          const ringIndex = Math.min(Math.floor((dist / maxRadius) * circleCount), circleCount - 1);
+          const angle = ringAngles[ringIndex];
+          
+          // Calculate source coordinates (rotate backwards to find source)
+          const cosA = Math.cos(-angle);
+          const sinA = Math.sin(-angle);
+          const srcX = Math.round(centerX + dx * cosA - dy * sinA);
+          const srcY = Math.round(centerY + dx * sinA + dy * cosA);
+          
+          const dstIdx = (y * width + x) * 4;
+          
+          // Check bounds and copy pixel
+          if (srcX >= 0 && srcX < width && srcY >= 0 && srcY < height) {
+            const srcIdx = (srcY * width + srcX) * 4;
+            outPixels[dstIdx] = srcPixels[srcIdx];
+            outPixels[dstIdx + 1] = srcPixels[srcIdx + 1];
+            outPixels[dstIdx + 2] = srcPixels[srcIdx + 2];
+            outPixels[dstIdx + 3] = srcPixels[srcIdx + 3];
+          } else {
+            // Edge - use black or edge color
+            outPixels[dstIdx] = 0;
+            outPixels[dstIdx + 1] = 0;
+            outPixels[dstIdx + 2] = 0;
+            outPixels[dstIdx + 3] = 255;
+          }
+        }
+      }
       
-      ctx.restore();
+      ctx.putImageData(outputData, 0, 0);
+    } catch (e) {
+      // Ignore cross-origin errors
     }
-    ctx.restore();
   }
   
   // Rain Mask Effect - realistic animated rain drops
