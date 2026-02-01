@@ -42,7 +42,18 @@ import {
   EyeOff,
   Settings2,
   Zap,
-  Power
+  Power,
+  CircleDot,
+  Focus,
+  Palette,
+  AlignJustify,
+  Waves,
+  Grid3x3,
+  FlipHorizontal,
+  Aperture,
+  Link2,
+  Unlink2,
+  GripVertical,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -193,6 +204,72 @@ function PreviewPanel({
     };
   }, []);
 
+  const renderEffectOverlay = (effect: ClipEffect, clipTime: number, clipDuration: number) => {
+    if (!effect.enabled) return null;
+    
+    const effectStart = effect.startOffset || 0;
+    const effectDuration = effect.duration || clipDuration;
+    const effectTime = clipTime - effectStart;
+    
+    if (effectTime < 0 || effectTime > effectDuration) return null;
+    
+    if (effect.type === "visualizer") {
+      const colorMap: Record<string, string[]> = {
+        neon: ["#ff00ff", "#00ffff", "#ffff00"],
+        sunset: ["#ff6b35", "#ff9a3c", "#ffc93c"],
+        ocean: ["#0077be", "#00a8cc", "#00d4ff"],
+        galaxy: ["#9b59b6", "#3498db", "#1abc9c"],
+        fire: ["#ff4500", "#ff6347", "#ffa500"],
+        matrix: ["#00ff00", "#32cd32", "#228b22"],
+        pastel: ["#ffb3ba", "#bae1ff", "#baffc9"],
+        monochrome: ["#ffffff", "#cccccc", "#999999"],
+      };
+      const colors = colorMap[effect.colorScheme || "neon"] || colorMap.neon;
+      const animPhase = (Date.now() / 1000) % 1;
+      
+      return (
+        <div 
+          key={effect.id}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `linear-gradient(${animPhase * 360}deg, ${colors[0]}40 0%, ${colors[1]}30 50%, ${colors[2]}40 100%)`,
+            mixBlendMode: "screen",
+          }}
+        >
+          <div className="absolute bottom-4 left-4 text-white/60 text-xs">
+            {effect.visualizationType || "Visualizer"} Effect
+          </div>
+        </div>
+      );
+    }
+    
+    if (effect.type === "overlay" || effect.type === "filter") {
+      const settings = effect.settings as Record<string, number | boolean | string> || {};
+      const intensity = (settings.intensity as number) || 0.5;
+      
+      let overlayStyle: React.CSSProperties = {
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+      };
+      
+      if (effect.name.toLowerCase().includes("glow") || effect.name.toLowerCase().includes("bloom")) {
+        overlayStyle.boxShadow = `inset 0 0 ${60 * intensity}px ${30 * intensity}px rgba(255,255,255,${0.2 * intensity})`;
+      } else if (effect.name.toLowerCase().includes("vignette")) {
+        overlayStyle.background = `radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,${0.7 * intensity}) 100%)`;
+      } else if (effect.name.toLowerCase().includes("blur")) {
+        overlayStyle.backdropFilter = `blur(${10 * intensity}px)`;
+      } else if (effect.name.toLowerCase().includes("color")) {
+        overlayStyle.background = `rgba(${settings.r || 255}, ${settings.g || 100}, ${settings.b || 100}, ${0.3 * intensity})`;
+        overlayStyle.mixBlendMode = "overlay";
+      }
+      
+      return <div key={effect.id} style={overlayStyle} />;
+    }
+    
+    return null;
+  };
+
   const renderClipPreview = (clip: TimelineClip) => {
     const opacity = clip.opacity !== undefined ? clip.opacity / 100 : 1;
     const brightness = clip.filters?.brightness !== undefined ? 100 + clip.filters.brightness : 100;
@@ -201,25 +278,29 @@ function PreviewPanel({
     const blur = clip.filters?.blur !== undefined ? clip.filters.blur : 0;
     
     const filterStyle = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px)`;
+    const clipTime = playhead - clip.startTime;
+    const effects = clip.effects || [];
+    const enabledEffects = effects.filter(e => e.enabled);
 
     if (clip.type === "video" && clip.mediaUrl) {
-      // Mute video since audio is handled by the linked audio clip
       return (
-        <video
-          ref={(el) => {
-            if (el) videoRefs.current.set(clip.id, el);
-          }}
-          src={clip.mediaUrl}
-          className="absolute inset-0 w-full h-full object-contain"
-          style={{ opacity, filter: filterStyle }}
-          muted
-          playsInline
-          preload="auto"
-        />
+        <>
+          <video
+            ref={(el) => {
+              if (el) videoRefs.current.set(clip.id, el);
+            }}
+            src={clip.mediaUrl}
+            className="absolute inset-0 w-full h-full object-contain"
+            style={{ opacity, filter: filterStyle }}
+            muted
+            playsInline
+            preload="auto"
+          />
+          {enabledEffects.map(effect => renderEffectOverlay(effect, clipTime, clip.duration))}
+        </>
       );
     }
     
-    // Audio clips don't render visually - they only produce sound
     if (clip.type === "audio") {
       return null;
     }
@@ -239,6 +320,20 @@ function PreviewPanel({
             <div className="text-sm text-gray-300">{clip.visualizationType || "Visualizer"}</div>
           </div>
         </div>
+      );
+    }
+
+    if (clip.type === "image" && clip.mediaUrl) {
+      return (
+        <>
+          <img
+            src={clip.mediaUrl}
+            alt={clip.name}
+            className="absolute inset-0 w-full h-full object-contain"
+            style={{ opacity, filter: filterStyle }}
+          />
+          {enabledEffects.map(effect => renderEffectOverlay(effect, clipTime, clip.duration))}
+        </>
       );
     }
 
@@ -420,14 +515,18 @@ function TimelineRuler({
 
 function TrackHeader({
   track,
+  trackCount,
   onMute,
   onLock,
   onDelete,
+  onReorder,
 }: {
   track: TimelineTrack;
+  trackCount: number;
   onMute: () => void;
   onLock: () => void;
   onDelete: () => void;
+  onReorder: (newOrder: number) => void;
 }) {
   const icons: Record<TrackType, typeof Film> = {
     video: Film,
@@ -435,19 +534,57 @@ function TrackHeader({
     visualizer: Sparkles,
   };
   const Icon = icons[track.type];
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("track-reorder", JSON.stringify({ trackId: track.id, order: track.order }));
+    e.dataTransfer.effectAllowed = "move";
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    const data = e.dataTransfer.types.includes("track-reorder");
+    if (data) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData("track-reorder");
+    if (data) {
+      const { trackId: draggedTrackId } = JSON.parse(data);
+      if (draggedTrackId !== track.id) {
+        onReorder(track.order);
+      }
+    }
+  };
 
   return (
     <div 
-      className="flex items-center gap-2 px-2 py-1 bg-card border-b"
+      className={cn(
+        "flex items-center gap-1 px-2 py-1 bg-card border-b",
+        isDragging && "opacity-50"
+      )}
       style={{ height: track.height }}
       data-testid={`track-header-${track.id}`}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
-      <Icon className="w-4 h-4 text-muted-foreground" />
-      <span className="text-sm flex-1 truncate">{track.name}</span>
+      <GripVertical className="w-3 h-3 text-muted-foreground cursor-grab flex-shrink-0" />
+      <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      <span className="text-sm flex-1 truncate min-w-0">{track.name}</span>
       <Button
         size="icon"
         variant="ghost"
-        className="w-6 h-6"
         onClick={onMute}
         data-testid={`button-mute-${track.id}`}
       >
@@ -460,7 +597,6 @@ function TrackHeader({
       <Button
         size="icon"
         variant="ghost"
-        className="w-6 h-6"
         onClick={onLock}
         data-testid={`button-lock-${track.id}`}
       >
@@ -473,7 +609,6 @@ function TrackHeader({
       <Button
         size="icon"
         variant="ghost"
-        className="w-6 h-6"
         onClick={onDelete}
         data-testid={`button-delete-track-${track.id}`}
       >
@@ -1115,6 +1250,47 @@ function MediaLibrary({
               ))}
             </div>
           </div>
+
+          <div>
+            <h3 className="text-sm font-semibold mb-2">Video Effects</h3>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Visual overlays and filters for clips
+            </p>
+            <div className="space-y-1">
+              {[
+                { id: "glow", name: "Glow/Bloom", icon: Sparkles, settings: { intensity: 0.5 } },
+                { id: "vignette", name: "Vignette", icon: CircleDot, settings: { intensity: 0.6 } },
+                { id: "blur", name: "Blur Effect", icon: Focus, settings: { intensity: 0.3 } },
+                { id: "color-overlay", name: "Color Overlay", icon: Palette, settings: { intensity: 0.4, r: 255, g: 100, b: 100 } },
+                { id: "chromatic", name: "Chromatic Aberration", icon: Layers, settings: { intensity: 0.4 } },
+                { id: "scanlines", name: "Scanlines", icon: AlignJustify, settings: { intensity: 0.3 } },
+                { id: "glitch", name: "Glitch Effect", icon: Zap, settings: { intensity: 0.3 } },
+                { id: "film-grain", name: "Film Grain", icon: Film, settings: { intensity: 0.4 } },
+                { id: "wave-distort", name: "Wave Distortion", icon: Waves, settings: { intensity: 0.3 } },
+                { id: "pixelate", name: "Pixelate", icon: Grid3x3, settings: { intensity: 0.3 } },
+                { id: "mirror", name: "Mirror Effect", icon: FlipHorizontal, settings: { intensity: 0.5, mode: "horizontal" } },
+                { id: "kaleidoscope", name: "Kaleidoscope", icon: Aperture, settings: { intensity: 0.5, segments: 6 } },
+              ].map((effect) => (
+                <div
+                  key={effect.id}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/json", JSON.stringify({
+                      type: "overlay",
+                      effectType: "overlay",
+                      name: effect.name,
+                      settings: effect.settings,
+                    }));
+                  }}
+                  data-testid={`video-effect-${effect.id}`}
+                >
+                  <effect.icon className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm truncate">{effect.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1123,23 +1299,41 @@ function MediaLibrary({
 
 function ClipPropertiesPanel({
   clip,
+  clips,
   onUpdate,
   onSplit,
   onDelete,
   playhead,
   onToggleEffect,
   onRemoveEffect,
+  onLinkClip,
+  onUnlinkClip,
 }: {
   clip: TimelineClip;
+  clips: TimelineClip[];
   onUpdate: (updates: Partial<TimelineClip>) => void;
   onSplit: () => void;
   onDelete: () => void;
   playhead: number;
   onToggleEffect?: (clipId: string, effectId: string) => void;
   onRemoveEffect?: (clipId: string, effectId: string) => void;
+  onLinkClip?: (clipId: string, linkedToClipId: string) => void;
+  onUnlinkClip?: (clipId: string) => void;
 }) {
   const canSplit = playhead > clip.startTime && playhead < clip.startTime + clip.duration;
   const effects = clip.effects || [];
+  
+  const linkedClip = clip.linkedClipId ? clips.find(c => c.id === clip.linkedClipId) : null;
+  const clipsLinkedToThis = clips.filter(c => c.linkedClipId === clip.id);
+  const isLinked = !!linkedClip || clipsLinkedToThis.length > 0;
+  
+  const linkableClips = clips.filter(c => {
+    if (c.id === clip.id) return false;
+    if (c.linkedClipId || clips.some(other => other.linkedClipId === c.id)) return false;
+    if (clip.type === "video" && c.type === "audio") return true;
+    if (clip.type === "audio" && c.type === "video") return true;
+    return false;
+  });
 
   return (
     <div className="p-4 space-y-4 border-l bg-card" data-testid="clip-properties-panel">
@@ -1184,6 +1378,70 @@ function ClipPropertiesPanel({
           </Button>
         </div>
       </div>
+
+      {(clip.type === "audio" || clip.type === "video") && (
+        <div className="border-t pt-4">
+          <h4 className="text-xs font-semibold mb-3 flex items-center gap-2">
+            {isLinked ? <Link2 className="w-3 h-3 text-primary" /> : <Unlink2 className="w-3 h-3" />}
+            Audio/Video Link
+          </h4>
+          <div className="space-y-2">
+            {isLinked ? (
+              <div className="space-y-2">
+                <div className="text-xs text-muted-foreground mb-2">
+                  {linkedClip ? (
+                    <span>Linked to: <span className="text-foreground font-medium">{linkedClip.name}</span></span>
+                  ) : clipsLinkedToThis.length > 0 ? (
+                    <span>Linked from: <span className="text-foreground font-medium">{clipsLinkedToThis.map(c => c.name).join(", ")}</span></span>
+                  ) : null}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Speed changes will sync between linked clips
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    if (linkedClip && onUnlinkClip) {
+                      onUnlinkClip(clip.id);
+                    } else if (clipsLinkedToThis.length > 0 && onUnlinkClip) {
+                      clipsLinkedToThis.forEach(c => onUnlinkClip(c.id));
+                    }
+                  }}
+                  data-testid="button-unlink-clip"
+                >
+                  <Unlink2 className="w-4 h-4 mr-2" />
+                  Unlink Clips
+                </Button>
+              </div>
+            ) : linkableClips.length > 0 ? (
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Link to clip:</label>
+                <div className="space-y-1">
+                  {linkableClips.map(lc => (
+                    <Button
+                      key={lc.id}
+                      size="sm"
+                      variant="ghost"
+                      className="w-full justify-start text-xs"
+                      onClick={() => onLinkClip?.(clip.id, lc.id)}
+                      data-testid={`button-link-to-${lc.id}`}
+                    >
+                      <Link2 className="w-3 h-3 mr-2" />
+                      {lc.name} ({lc.type})
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground">
+                No compatible clips to link. Add an {clip.type === "video" ? "audio" : "video"} clip to enable linking.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {(clip.type === "audio" || clip.type === "video") && (
         <div className="border-t pt-4">
@@ -1430,6 +1688,10 @@ export default function Editor() {
     addEffectToClip,
     removeEffectFromClip,
     toggleEffectEnabled,
+    linkClips,
+    unlinkClip,
+    updateClipWithLinked,
+    reorderTrack,
   } = useTimelineState();
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
@@ -1767,15 +2029,29 @@ export default function Editor() {
               </div>
 
               <div className="flex-1 flex overflow-hidden min-h-0">
-                <div className="w-48 flex-shrink-0 border-r overflow-y-auto">
+                <div 
+                  className="w-48 flex-shrink-0 border-r overflow-y-auto"
+                  onScroll={(e) => {
+                    if (timelineRef.current) {
+                      timelineRef.current.scrollTop = e.currentTarget.scrollTop;
+                    }
+                  }}
+                  ref={(el) => {
+                    if (el && timelineRef.current) {
+                      el.scrollTop = timelineRef.current.scrollTop;
+                    }
+                  }}
+                >
                   <div className="h-6 border-b" />
                   {state.tracks.map((track) => (
                     <TrackHeader
                       key={track.id}
                       track={track}
+                      trackCount={state.tracks.length}
                       onMute={() => toggleTrackMute(track.id)}
                       onLock={() => toggleTrackLock(track.id)}
                       onDelete={() => removeTrack(track.id)}
+                      onReorder={(newOrder) => reorderTrack(track.id, newOrder)}
                     />
                   ))}
                 </div>
@@ -1783,7 +2059,13 @@ export default function Editor() {
               <div 
                 ref={timelineRef}
                 className="flex-1 overflow-auto"
-                onScroll={(e) => setTimelineScrollLeft(e.currentTarget.scrollLeft)}
+                onScroll={(e) => {
+                  setTimelineScrollLeft(e.currentTarget.scrollLeft);
+                  const trackHeadersDiv = e.currentTarget.previousElementSibling as HTMLElement;
+                  if (trackHeadersDiv) {
+                    trackHeadersDiv.scrollTop = e.currentTarget.scrollTop;
+                  }
+                }}
               >
                 <div style={{ width: totalWidth, minWidth: "100%" }}>
                   <TimelineRuler
@@ -1825,12 +2107,21 @@ export default function Editor() {
           <aside className="w-72 border-l bg-card overflow-y-auto flex-shrink-0">
             <ClipPropertiesPanel
               clip={selectedClip}
-              onUpdate={(updates) => updateClip(selectedClip.id, updates)}
+              clips={state.clips}
+              onUpdate={(updates) => {
+                if (updates.speed !== undefined && selectedClip.linkedClipId) {
+                  updateClipWithLinked(selectedClip.id, updates);
+                } else {
+                  updateClip(selectedClip.id, updates);
+                }
+              }}
               onSplit={() => splitClip(selectedClip.id, state.playhead)}
               onDelete={deleteSelectedClip}
               playhead={state.playhead}
               onToggleEffect={toggleEffectEnabled}
               onRemoveEffect={removeEffectFromClip}
+              onLinkClip={linkClips}
+              onUnlinkClip={unlinkClip}
             />
           </aside>
         )}

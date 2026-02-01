@@ -638,6 +638,110 @@ export function useTimelineState() {
     });
   }, []);
 
+  const linkClips = useCallback((clipId: string, linkedToClipId: string) => {
+    setState((prev) => {
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId ? { ...c, linkedClipId: linkedToClipId } : c
+        ),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const unlinkClip = useCallback((clipId: string) => {
+    setState((prev) => {
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId ? { ...c, linkedClipId: undefined } : c
+        ),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const updateClipWithLinked = useCallback((clipId: string, updates: Partial<TimelineClip>) => {
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      const linkedClipIds = prev.clips
+        .filter((c) => c.linkedClipId === clipId || c.id === clip.linkedClipId)
+        .map((c) => c.id);
+      
+      const syncUpdates: Partial<TimelineClip> = {};
+      if (updates.speed !== undefined) syncUpdates.speed = updates.speed;
+      if (updates.startTime !== undefined) syncUpdates.startTime = updates.startTime;
+      
+      const newState = {
+        ...prev,
+        clips: prev.clips.map((c) => {
+          if (c.id === clipId) return { ...c, ...updates };
+          if (linkedClipIds.includes(c.id) && Object.keys(syncUpdates).length > 0) {
+            return { ...c, ...syncUpdates };
+          }
+          return c;
+        }),
+      };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const reorderTrack = useCallback((trackId: string, newOrder: number) => {
+    setState((prev) => {
+      const track = prev.tracks.find((t) => t.id === trackId);
+      if (!track) return prev;
+      
+      const oldOrder = track.order;
+      if (oldOrder === newOrder) return prev;
+      
+      const newTracks = prev.tracks.map((t) => {
+        if (t.id === trackId) {
+          return { ...t, order: newOrder };
+        }
+        if (oldOrder < newOrder) {
+          if (t.order > oldOrder && t.order <= newOrder) {
+            return { ...t, order: t.order - 1 };
+          }
+        } else {
+          if (t.order >= newOrder && t.order < oldOrder) {
+            return { ...t, order: t.order + 1 };
+          }
+        }
+        return t;
+      });
+      
+      const newState = { ...prev, tracks: newTracks.sort((a, b) => a.order - b.order) };
+      saveToHistory(newState);
+      return newState;
+    });
+  }, [saveToHistory]);
+
+  const moveTrackUp = useCallback((trackId: string) => {
+    setState((prev) => {
+      const track = prev.tracks.find((t) => t.id === trackId);
+      if (!track || track.order === 0) return prev;
+      reorderTrack(trackId, track.order - 1);
+      return prev;
+    });
+  }, [reorderTrack]);
+
+  const moveTrackDown = useCallback((trackId: string) => {
+    setState((prev) => {
+      const track = prev.tracks.find((t) => t.id === trackId);
+      if (!track || track.order >= prev.tracks.length - 1) return prev;
+      reorderTrack(trackId, track.order + 1);
+      return prev;
+    });
+  }, [reorderTrack]);
+
   return {
     state,
     addTrack,
@@ -672,5 +776,12 @@ export function useTimelineState() {
     removeEffectFromClip,
     updateClipEffect,
     toggleEffectEnabled,
+    // Linking and track management
+    linkClips,
+    unlinkClip,
+    updateClipWithLinked,
+    reorderTrack,
+    moveTrackUp,
+    moveTrackDown,
   };
 }
