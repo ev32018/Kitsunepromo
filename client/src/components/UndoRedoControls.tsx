@@ -9,6 +9,7 @@ interface UndoRedoControlsProps {
   onRedo: () => void;
   historyLength?: number;
   futureLength?: number;
+  currentIndex?: number;
 }
 
 export function UndoRedoControls({
@@ -17,7 +18,7 @@ export function UndoRedoControls({
   onUndo,
   onRedo,
   historyLength = 0,
-  futureLength = 0,
+  currentIndex = 0,
 }: UndoRedoControlsProps) {
   return (
     <div className="flex items-center gap-1">
