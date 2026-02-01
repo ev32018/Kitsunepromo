@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { Link } from "wouter";
 import { AudioUploader } from "@/components/AudioUploader";
 import { VisualizerCanvas, type VisualizerCanvasHandle } from "@/components/VisualizerCanvas";
 import { AudioPlayer } from "@/components/AudioPlayer";
@@ -37,7 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { VisualizationType, ColorScheme, VisualizationSettings } from "@shared/schema";
 import { visualizationTypes, colorSchemes } from "@shared/schema";
-import { Music, Waves, Maximize, Minimize, Keyboard, X, Menu, Shuffle } from "lucide-react";
+import { Music, Waves, Maximize, Minimize, Keyboard, X, Menu, Shuffle, Film } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AudioLevelMeter } from "@/components/AudioLevelMeter";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -392,6 +393,17 @@ export default function Home() {
               {/* Close button for mobile */}
               <div className="flex items-center gap-1">
                 <ThemeToggle />
+                <Link href="/editor">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    data-testid="button-video-editor"
+                    title="Video Editor"
+                  >
+                    <Film className="w-4 h-4" />
+                  </Button>
+                </Link>
                 <Button
                   size="icon"
                   variant="ghost"

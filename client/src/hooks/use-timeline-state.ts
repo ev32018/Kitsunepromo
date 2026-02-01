@@ -95,7 +95,7 @@ export function useTimelineState() {
   ) => {
     setState((prev) => {
       const track = prev.tracks.find((t) => t.id === trackId);
-      if (!track) return prev;
+      if (!track || track.locked) return prev;
 
       const newClip: TimelineClip = {
         id: generateId(),
@@ -129,33 +129,47 @@ export function useTimelineState() {
   }, []);
 
   const moveClip = useCallback((clipId: string, newStartTime: number, newTrackId?: string) => {
-    setState((prev) => ({
-      ...prev,
-      clips: prev.clips.map((c) =>
-        c.id === clipId
-          ? { ...c, startTime: Math.max(0, newStartTime), trackId: newTrackId || c.trackId }
-          : c
-      ),
-    }));
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      return {
+        ...prev,
+        clips: prev.clips.map((c) =>
+          c.id === clipId
+            ? { ...c, startTime: Math.max(0, newStartTime), trackId: newTrackId || c.trackId }
+            : c
+        ),
+      };
+    });
   }, []);
 
   const resizeClip = useCallback((clipId: string, newDuration: number, trimStart?: boolean) => {
-    setState((prev) => ({
-      ...prev,
-      clips: prev.clips.map((c) => {
-        if (c.id !== clipId) return c;
-        if (trimStart) {
-          const delta = c.duration - newDuration;
-          return {
-            ...c,
-            startTime: c.startTime + delta,
-            duration: Math.max(0.5, newDuration),
-            trimIn: c.trimIn + delta,
-          };
-        }
-        return { ...c, duration: Math.max(0.5, newDuration) };
-      }),
-    }));
+    setState((prev) => {
+      const clip = prev.clips.find((c) => c.id === clipId);
+      if (!clip) return prev;
+      const track = prev.tracks.find((t) => t.id === clip.trackId);
+      if (track?.locked) return prev;
+      
+      return {
+        ...prev,
+        clips: prev.clips.map((c) => {
+          if (c.id !== clipId) return c;
+          if (trimStart) {
+            const delta = c.duration - newDuration;
+            return {
+              ...c,
+              startTime: c.startTime + delta,
+              duration: Math.max(0.5, newDuration),
+              trimIn: c.trimIn + delta,
+            };
+          }
+          return { ...c, duration: Math.max(0.5, newDuration) };
+        }),
+      };
+    });
   }, []);
 
   const selectClip = useCallback((clipId: string | null) => {

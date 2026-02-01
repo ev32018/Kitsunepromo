@@ -82,6 +82,15 @@ Kitsune Promo is a professional audio visualization web application that creates
   - Randomize Button: One-click randomization of all visualization settings for inspiration
   - Quick Start Guide: Interactive onboarding walkthrough for new users
 
+- **Timeline Video Editor** (at /editor):
+  - Multi-track timeline with video, audio, and visualizer tracks
+  - Drag-and-drop clip positioning with resize handles
+  - Playhead scrubbing and transport controls (play/pause/skip)
+  - Zoom controls for timeline view
+  - Media library panel with visualizer presets
+  - Track controls: mute, lock, delete
+  - Double-click to add clips to tracks
+
 ## Tech Stack
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI
 - **Backend**: Express.js, Node.js
