@@ -7,6 +7,12 @@ export interface AudioData {
   trebleLevel: number;
 }
 
+// Cache for already-connected audio elements (they can only be connected once)
+const audioSourceCache = new WeakMap<HTMLAudioElement, {
+  context: AudioContext;
+  source: MediaElementAudioSourceNode;
+}>();
+
 export class AudioAnalyzer {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
@@ -23,12 +29,24 @@ export class AudioAnalyzer {
 
     this.cleanup();
 
-    this.audioContext = new AudioContext();
+    // Check if this audio element was already connected
+    const cached = audioSourceCache.get(audioElement);
+    if (cached) {
+      this.audioContext = cached.context;
+      this.sourceNode = cached.source;
+    } else {
+      this.audioContext = new AudioContext();
+      this.sourceNode = this.audioContext.createMediaElementSource(audioElement);
+      audioSourceCache.set(audioElement, {
+        context: this.audioContext,
+        source: this.sourceNode,
+      });
+    }
+
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = this.fftSize;
     this.analyser.smoothingTimeConstant = 0.8;
 
-    this.sourceNode = this.audioContext.createMediaElementSource(audioElement);
     this.sourceNode.connect(this.analyser);
     this.analyser.connect(this.audioContext.destination);
 
@@ -82,18 +100,14 @@ export class AudioAnalyzer {
   }
 
   cleanup(): void {
-    if (this.sourceNode) {
-      this.sourceNode.disconnect();
-      this.sourceNode = null;
-    }
+    // Disconnect analyser but don't close context (it's cached for reuse)
     if (this.analyser) {
       this.analyser.disconnect();
       this.analyser = null;
     }
-    if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
-    }
+    // Don't disconnect sourceNode or close audioContext - they're cached
+    this.sourceNode = null;
+    this.audioContext = null;
     this.audioElement = null;
     this.isInitialized = false;
   }
