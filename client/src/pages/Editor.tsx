@@ -20,8 +20,12 @@ import {
   Music,
   Film,
   Sparkles,
-  Image,
-  Upload
+  Columns,
+  Square,
+  Rows,
+  PanelTop,
+  PanelBottom,
+  Maximize2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -511,6 +515,8 @@ function MediaLibrary({
   );
 }
 
+type LayoutMode = "split" | "preview" | "timeline";
+
 export default function Editor() {
   const {
     state,
@@ -528,6 +534,7 @@ export default function Editor() {
     getClipsForTrack,
   } = useTimelineState();
 
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
   const timelineRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const lastTimeRef = useRef<number>(0);
@@ -595,7 +602,7 @@ export default function Editor() {
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      <header className="flex items-center justify-between px-4 py-2 border-b bg-card">
+      <header className="flex items-center justify-between px-4 py-2 border-b bg-card flex-shrink-0">
         <div className="flex items-center gap-4">
           <Link href="/">
             <Button variant="ghost" size="sm" className="gap-2" data-testid="button-back-home">
@@ -605,101 +612,139 @@ export default function Editor() {
           </Link>
           <h1 className="text-lg font-semibold">{state.project.name}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 border rounded-lg p-1">
+            <Button
+              size="icon"
+              variant={layoutMode === "preview" ? "default" : "ghost"}
+              onClick={() => setLayoutMode("preview")}
+              title="Full Preview"
+              data-testid="button-layout-preview"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={layoutMode === "split" ? "default" : "ghost"}
+              onClick={() => setLayoutMode("split")}
+              title="Split View"
+              data-testid="button-layout-split"
+            >
+              <Rows className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant={layoutMode === "timeline" ? "default" : "ghost"}
+              onClick={() => setLayoutMode("timeline")}
+              title="Full Timeline"
+              data-testid="button-layout-timeline"
+            >
+              <PanelBottom className="w-4 h-4" />
+            </Button>
+          </div>
           <span className="text-sm text-muted-foreground">
             {state.project.resolution.width}x{state.project.resolution.height} @ {state.project.fps}fps
           </span>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        <aside className="w-64 border-r bg-card overflow-y-auto">
-          <MediaLibrary onAddToTimeline={handleAddMediaToTimeline} />
-        </aside>
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {layoutMode !== "preview" && (
+          <aside className="w-64 border-r bg-card overflow-y-auto flex-shrink-0">
+            <MediaLibrary onAddToTimeline={handleAddMediaToTimeline} />
+          </aside>
+        )}
 
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-4 flex-shrink-0">
-            <PreviewPanel 
-              playhead={state.playhead}
+        <main className="flex-1 flex flex-col overflow-hidden min-h-0">
+          {layoutMode !== "timeline" && (
+            <div className={`p-4 flex-shrink-0 ${layoutMode === "preview" ? "flex-1 flex items-center justify-center" : ""}`}>
+              <div className={layoutMode === "preview" ? "w-full max-w-5xl" : ""}>
+                <PreviewPanel 
+                  playhead={state.playhead}
+                  isPlaying={state.isPlaying}
+                  duration={state.project.duration}
+                  clips={state.clips}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex-shrink-0 px-4">
+            <TransportControls
               isPlaying={state.isPlaying}
+              playhead={state.playhead}
               duration={state.project.duration}
-              clips={state.clips}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onSeek={setPlayhead}
+              onSkipBack={() => setPlayhead(Math.max(0, state.playhead - 5))}
+              onSkipForward={() => setPlayhead(Math.min(state.project.duration, state.playhead + 5))}
             />
           </div>
 
-          <TransportControls
-            isPlaying={state.isPlaying}
-            playhead={state.playhead}
-            duration={state.project.duration}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onSeek={setPlayhead}
-            onSkipBack={() => setPlayhead(Math.max(0, state.playhead - 5))}
-            onSkipForward={() => setPlayhead(Math.min(state.project.duration, state.playhead + 5))}
-          />
+          {layoutMode !== "preview" && (
+            <div className="flex-1 flex flex-col border-t overflow-hidden min-h-0">
+              <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline" className="gap-1" data-testid="button-add-track">
+                        <Plus className="w-4 h-4" />
+                        Add Track
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => addTrack("video")}>
+                        <Film className="w-4 h-4 mr-2" />
+                        Video Track
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => addTrack("audio")}>
+                        <Music className="w-4 h-4 mr-2" />
+                        Audio Track
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => addTrack("visualizer")}>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Visualizer Track
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setZoom(state.zoom / 1.5)}
+                    disabled={state.zoom <= 0.1}
+                    data-testid="button-zoom-out"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </Button>
+                  <span className="text-xs w-12 text-center">{Math.round(state.zoom * 100)}%</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setZoom(state.zoom * 1.5)}
+                    disabled={state.zoom >= 10}
+                    data-testid="button-zoom-in"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
 
-          <div className="flex-1 flex flex-col border-t overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b">
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="gap-1" data-testid="button-add-track">
-                      <Plus className="w-4 h-4" />
-                      Add Track
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => addTrack("video")}>
-                      <Film className="w-4 h-4 mr-2" />
-                      Video Track
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => addTrack("audio")}>
-                      <Music className="w-4 h-4 mr-2" />
-                      Audio Track
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => addTrack("visualizer")}>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Visualizer Track
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setZoom(state.zoom / 1.5)}
-                  disabled={state.zoom <= 0.1}
-                  data-testid="button-zoom-out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </Button>
-                <span className="text-xs w-12 text-center">{Math.round(state.zoom * 100)}%</span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setZoom(state.zoom * 1.5)}
-                  disabled={state.zoom >= 10}
-                  data-testid="button-zoom-in"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex-1 flex overflow-hidden">
-              <div className="w-48 flex-shrink-0 border-r overflow-y-auto">
-                <div className="h-6 border-b" />
-                {state.tracks.map((track) => (
-                  <TrackHeader
-                    key={track.id}
-                    track={track}
-                    onMute={() => toggleTrackMute(track.id)}
-                    onLock={() => toggleTrackLock(track.id)}
-                    onDelete={() => removeTrack(track.id)}
-                  />
-                ))}
-              </div>
+              <div className="flex-1 flex overflow-hidden min-h-0">
+                <div className="w-48 flex-shrink-0 border-r overflow-y-auto">
+                  <div className="h-6 border-b" />
+                  {state.tracks.map((track) => (
+                    <TrackHeader
+                      key={track.id}
+                      track={track}
+                      onMute={() => toggleTrackMute(track.id)}
+                      onLock={() => toggleTrackLock(track.id)}
+                      onDelete={() => removeTrack(track.id)}
+                    />
+                  ))}
+                </div>
 
               <div 
                 ref={timelineRef}
@@ -733,6 +778,7 @@ export default function Editor() {
               </div>
             </div>
           </div>
+          )}
         </main>
       </div>
     </div>
