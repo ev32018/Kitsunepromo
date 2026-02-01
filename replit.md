@@ -31,6 +31,11 @@ AudioViz is a professional audio visualization web application that creates stun
 - **Waveform Preview**: Visual waveform display with seek-on-click in audio player
 - **BPM Detection**: Automatic tempo detection from audio files
 - **Presets**: Save and load visualization presets with shareable codes
+- **Template Gallery**: 17 professional pre-designed templates organized by category:
+  - Social Media: TikTok Viral, Instagram Story, YouTube Intro, Instagram Feed
+  - Genre: EDM Energy, Hip-Hop Beats, Lo-fi Chill, Rock Anthem, Classical Elegance, Pop Vibes
+  - Style: Cyberpunk, Minimalist, Retro Wave, Neon Dreams, Dark Mode, Ocean Vibes, Galaxy Space
+  - Search and filter by category, quick-apply from sidebar
 
 ## Tech Stack
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI
@@ -61,7 +66,8 @@ client/
 │   │   ├── KenBurnsSettings.tsx
 │   │   ├── ParticleOverlaySettings.tsx
 │   │   ├── TextOverlaySettings.tsx
-│   │   └── ProgressBarSettings.tsx
+│   │   ├── ProgressBarSettings.tsx
+│   │   └── TemplateGallery.tsx
 │   ├── lib/           # Utility libraries
 │   │   ├── audioAnalyzer.ts    # Web Audio API wrapper
 │   │   ├── visualizers.ts      # Canvas visualization renderers
