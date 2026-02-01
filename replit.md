@@ -50,7 +50,15 @@ AudioViz is a professional audio visualization web application that creates stun
 - **Quick Export Presets**: One-click platform-specific configurations (YouTube, TikTok, Instagram, Spotify Canvas, Custom)
 - **Audio Normalization**: Auto-adjust audio levels with target presets (-14dB streaming, -16dB broadcast, -9dB loud)
 - **Visualization Scheduler**: Schedule different visualization styles for different song sections with transitions
-- **Effect Automation**: 8 preset automation patterns (EDM Drop, Chill Vibes, Glitch Mode, Dreamy, Rain Storm, Psychedelic, Minimal Pulse, Retro VHS) with:
+- **Effect Automation**: 14 preset automation patterns with multi-effect blending:
+  - Energy: EDM Drop, Bass Reactor
+  - Ambient: Chill Vibes, Dreamy
+  - Glitch: Glitch Mode, Horror Glitch
+  - Weather: Rain Storm, Underwater
+  - Creative: Psychedelic, Cosmic Journey, Neon City, Kaleidoscope
+  - Retro: Retro VHS
+  - Minimal: Minimal Pulse
+  - Features:
   - Sequential, random, or beat-sync cycling modes
   - Customizable cycle timing or beats-per-change
   - Automatic effect transitions synced to BPM
