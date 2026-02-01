@@ -97,7 +97,8 @@ export const visualizationTypes = [
   "audioBars",
   "perlinFluid",
   "audioBlob",
-  "kaleidoscope"
+  "kaleidoscope",
+  "endlessMaze"
 ] as const;
 
 export type VisualizationType = typeof visualizationTypes[number];

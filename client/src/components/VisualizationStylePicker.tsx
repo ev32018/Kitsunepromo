@@ -16,6 +16,7 @@ import {
   Droplets,
   Atom,
   Snowflake,
+  Grid3X3,
 } from "lucide-react";
 
 interface VisualizationStylePickerProps {
@@ -96,6 +97,11 @@ const visualizationMeta: Record<
     icon: Snowflake,
     label: "Kaleidoscope",
     description: "Symmetrical patterns",
+  },
+  endlessMaze: {
+    icon: Grid3X3,
+    label: "Endless Maze",
+    description: "Evolving labyrinth",
   },
 };
 

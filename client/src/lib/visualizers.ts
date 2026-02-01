@@ -114,6 +114,9 @@ export function drawVisualization(
     case "kaleidoscope":
       drawKaleidoscope(ctx, canvas, audioData, colors, cfg);
       break;
+    case "endlessMaze":
+      drawEndlessMaze(ctx, canvas, audioData, colors, cfg);
+      break;
   }
 }
 
@@ -899,6 +902,189 @@ function drawKaleidoscope(
   }
   
   ctx.restore();
+  ctx.shadowBlur = 0;
+}
+
+// Maze state for persistent evolving maze
+let mazeGrid: number[][] = [];
+let mazeTime = 0;
+let lastMazeUpdate = 0;
+
+function initMazeGrid(cols: number, rows: number): void {
+  mazeGrid = [];
+  for (let y = 0; y < rows; y++) {
+    mazeGrid[y] = [];
+    for (let x = 0; x < cols; x++) {
+      mazeGrid[y][x] = Math.random() > 0.35 ? 1 : 0;
+    }
+  }
+}
+
+function evolveMaze(cols: number, rows: number, intensity: number): void {
+  const newGrid: number[][] = [];
+  
+  for (let y = 0; y < rows; y++) {
+    newGrid[y] = [];
+    for (let x = 0; x < cols; x++) {
+      let neighbors = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const ny = (y + dy + rows) % rows;
+          const nx = (x + dx + cols) % cols;
+          neighbors += mazeGrid[ny]?.[nx] || 0;
+        }
+      }
+      
+      const current = mazeGrid[y]?.[x] || 0;
+      
+      if (current === 1) {
+        newGrid[y][x] = (neighbors >= 2 && neighbors <= 4) ? 1 : 0;
+      } else {
+        newGrid[y][x] = (neighbors === 3 || (intensity > 0.6 && neighbors === 2)) ? 1 : 0;
+      }
+      
+      if (Math.random() < intensity * 0.02) {
+        newGrid[y][x] = 1 - newGrid[y][x];
+      }
+    }
+  }
+  
+  mazeGrid = newGrid;
+}
+
+function drawEndlessMaze(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  colors: string[],
+  config: VisualizerConfig
+): void {
+  const { width, height } = canvas;
+  const { frequencyData, bassLevel, midLevel, trebleLevel, averageFrequency } = audioData;
+  const time = Date.now() * 0.001;
+  
+  const cellSize = 16;
+  const cols = Math.ceil(width / cellSize);
+  const rows = Math.ceil(height / cellSize);
+  
+  const bassNorm = bassLevel / 255;
+  const midNorm = midLevel / 255;
+  const trebleNorm = trebleLevel / 255;
+  const avgNorm = averageFrequency / 255;
+  
+  if (mazeGrid.length !== rows || (mazeGrid[0] && mazeGrid[0].length !== cols)) {
+    initMazeGrid(cols, rows);
+  }
+  
+  const now = Date.now();
+  const evolveInterval = Math.max(50, 300 - bassNorm * 250);
+  if (now - lastMazeUpdate > evolveInterval) {
+    evolveMaze(cols, rows, avgNorm * config.sensitivity);
+    lastMazeUpdate = now;
+    mazeTime += 0.1;
+  }
+  
+  const offsetX = Math.sin(time * 0.3) * cellSize * 0.5 * bassNorm;
+  const offsetY = Math.cos(time * 0.2) * cellSize * 0.5 * midNorm;
+  
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const cell = mazeGrid[y]?.[x] || 0;
+      const freqIndex = Math.floor((x / cols) * (frequencyData.length / 4));
+      const freqValue = frequencyData[freqIndex] / 255;
+      
+      const px = x * cellSize + offsetX;
+      const py = y * cellSize + offsetY;
+      
+      if (cell === 1) {
+        const colorIndex = Math.floor((x + y + mazeTime) % colors.length);
+        const nextColorIndex = (colorIndex + 1) % colors.length;
+        
+        const pulse = 0.6 + freqValue * 0.4 * config.sensitivity;
+        const size = cellSize * pulse;
+        const offset = (cellSize - size) / 2;
+        
+        const gradient = ctx.createLinearGradient(
+          px, py, px + cellSize, py + cellSize
+        );
+        gradient.addColorStop(0, colors[colorIndex]);
+        gradient.addColorStop(1, colors[nextColorIndex]);
+        
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = colors[colorIndex];
+        ctx.shadowBlur = 8 * config.glowIntensity * (0.5 + freqValue);
+        
+        const cornerRadius = 2 + bassNorm * 3;
+        ctx.beginPath();
+        ctx.roundRect(px + offset, py + offset, size, size, cornerRadius);
+        ctx.fill();
+      } else {
+        const pathGlow = freqValue * 0.15 * config.sensitivity;
+        if (pathGlow > 0.02) {
+          const colorIndex = Math.floor((x - y + mazeTime * 2) % colors.length);
+          ctx.fillStyle = colors[colorIndex] + Math.floor(pathGlow * 255).toString(16).padStart(2, '0');
+          ctx.fillRect(px, py, cellSize, cellSize);
+        }
+      }
+    }
+  }
+  
+  ctx.shadowBlur = 0;
+  
+  const pathPoints: { x: number; y: number }[] = [];
+  let pathX = Math.floor(cols / 2);
+  let pathY = Math.floor(rows / 2);
+  
+  for (let i = 0; i < 50; i++) {
+    const freqIndex = Math.floor((i / 50) * (frequencyData.length / 2));
+    const freqValue = frequencyData[freqIndex] / 255;
+    
+    pathPoints.push({
+      x: pathX * cellSize + cellSize / 2 + offsetX,
+      y: pathY * cellSize + cellSize / 2 + offsetY
+    });
+    
+    const directions = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 }
+    ];
+    
+    const freqDir = Math.floor(freqValue * 4) % 4;
+    const dir = directions[freqDir];
+    
+    pathX = (pathX + dir.dx + cols) % cols;
+    pathY = (pathY + dir.dy + rows) % rows;
+  }
+  
+  if (pathPoints.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+    
+    for (let i = 1; i < pathPoints.length; i++) {
+      const prev = pathPoints[i - 1];
+      const curr = pathPoints[i];
+      const cpx = (prev.x + curr.x) / 2;
+      const cpy = (prev.y + curr.y) / 2;
+      ctx.quadraticCurveTo(prev.x, prev.y, cpx, cpy);
+    }
+    
+    const pathGradient = ctx.createLinearGradient(0, 0, width, height);
+    colors.forEach((color, i) => {
+      pathGradient.addColorStop(i / (colors.length - 1), color + '80');
+    });
+    
+    ctx.strokeStyle = pathGradient;
+    ctx.lineWidth = 3 + bassNorm * 4;
+    ctx.shadowColor = colors[0];
+    ctx.shadowBlur = 15 * config.glowIntensity;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+  
   ctx.shadowBlur = 0;
 }
 
