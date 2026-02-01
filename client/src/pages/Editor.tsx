@@ -164,10 +164,13 @@ function PreviewPanel({
         }
       }
     });
-    
-    // Cleanup on unmount
+  }, [playhead, isPlaying, activeClips, clips, isTrackMuted]);
+
+  // Cleanup audio elements on unmount only
+  useEffect(() => {
+    const refs = audioRefs.current;
     return () => {
-      audioRefs.current.forEach((audioEl) => {
+      refs.forEach((audioEl) => {
         audioEl.pause();
         audioEl.src = "";
         if (audioEl.parentNode) {
@@ -175,7 +178,7 @@ function PreviewPanel({
         }
       });
     };
-  }, [playhead, isPlaying, activeClips, clips, isTrackMuted]);
+  }, []);
 
   const renderClipPreview = (clip: TimelineClip) => {
     const opacity = clip.opacity !== undefined ? clip.opacity / 100 : 1;
@@ -202,19 +205,9 @@ function PreviewPanel({
       );
     }
     
+    // Audio clips don't render visually - they only produce sound
     if (clip.type === "audio") {
-      return (
-        <div 
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ backgroundColor: clip.color + "30", opacity }}
-        >
-          <div className="text-center">
-            <Music className="w-16 h-16 mx-auto mb-2 text-white/70" />
-            <div className="text-xl font-medium text-white">{clip.name}</div>
-            <div className="text-sm text-gray-400">Audio Track</div>
-          </div>
-        </div>
-      );
+      return null;
     }
     
     if (clip.type === "visualizer") {
@@ -248,12 +241,20 @@ function PreviewPanel({
     );
   };
 
+  // Filter to only visual clips (not audio) and sort by layer order
+  const visualClips = activeClips.filter(clip => clip.type !== "audio");
+  // Render visualizers first (background), then video on top
+  const sortedVisualClips = [...visualClips].sort((a, b) => {
+    const order = { visualizer: 0, video: 1 };
+    return (order[a.type as keyof typeof order] ?? 2) - (order[b.type as keyof typeof order] ?? 2);
+  });
+
   return (
     <div className="bg-black rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
-      {activeClips.length > 0 ? (
+      {sortedVisualClips.length > 0 ? (
         <div className="absolute inset-0">
-          {activeClips.map((clip) => (
-            <div key={clip.id} className="absolute inset-0">
+          {sortedVisualClips.map((clip, index) => (
+            <div key={clip.id} className="absolute inset-0" style={{ zIndex: index }}>
               {renderClipPreview(clip)}
             </div>
           ))}
@@ -264,7 +265,7 @@ function PreviewPanel({
           <p>No clip at playhead</p>
         </div>
       )}
-      <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded text-xs text-white font-mono">
+      <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded text-xs text-white font-mono z-50">
         {formatTime(playhead)}
       </div>
     </div>
