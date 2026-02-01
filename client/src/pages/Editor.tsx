@@ -201,6 +201,7 @@ function PreviewPanel({
           style={{ opacity, filter: filterStyle }}
           muted
           playsInline
+          preload="auto"
         />
       );
     }

@@ -154,6 +154,8 @@ export function useTimelineState() {
       const track = prev.tracks.find((t) => t.id === trackId);
       if (!track || track.locked) return prev;
 
+      let newTracks = prev.tracks;
+
       const newClip: TimelineClip = {
         id: generateId(),
         trackId,
@@ -167,11 +169,49 @@ export function useTimelineState() {
         ...options,
       };
 
+      const newClips = [newClip];
+
+      // Auto-extract audio track when adding video with media
+      if (type === "video" && options?.mediaUrl) {
+        let audioTrack = newTracks.find((t) => t.type === "audio");
+        if (!audioTrack) {
+          const audioTrackCount = newTracks.filter((t) => t.type === "audio").length + 1;
+          audioTrack = {
+            id: generateId(),
+            name: `Audio ${audioTrackCount}`,
+            type: "audio" as TrackType,
+            muted: false,
+            locked: false,
+            height: 40,
+            order: newTracks.length,
+          };
+          newTracks = [...newTracks, audioTrack];
+        }
+        
+        if (!audioTrack.locked) {
+          const audioClip: TimelineClip = {
+            id: generateId(),
+            trackId: audioTrack.id,
+            type: "audio",
+            name: `${name || "Video"} (Audio)`,
+            startTime,
+            duration,
+            trimIn: 0,
+            trimOut: 0,
+            color: trackColors.audio,
+            mediaUrl: options.mediaUrl,
+            linkedClipId: newClip.id,
+          };
+          newClips.push(audioClip);
+        }
+      }
+
       const newDuration = Math.max(prev.project.duration, startTime + duration + 10);
       
       const newState = {
         ...prev,
-        clips: [...prev.clips, newClip],
+        tracks: newTracks,
+        clips: [...prev.clips, ...newClips],
         project: { ...prev.project, duration: newDuration },
       };
       saveToHistory(newState);
