@@ -123,7 +123,10 @@ function PreviewPanel({
       if (clip.mediaUrl && clip.type === "video") {
         const videoEl = videoRefs.current.get(clip.id);
         if (videoEl) {
-          if (Math.abs(videoEl.currentTime - targetTime) > 0.1) {
+          // Only seek when paused or significantly out of sync (>0.5s)
+          // This prevents stuttering during normal playback
+          const syncThreshold = isPlaying ? 0.5 : 0.05;
+          if (Math.abs(videoEl.currentTime - targetTime) > syncThreshold) {
             videoEl.currentTime = Math.max(0, targetTime);
           }
           
@@ -143,11 +146,14 @@ function PreviewPanel({
           audioEl = document.createElement("audio");
           audioEl.src = clip.mediaUrl;
           audioEl.style.display = "none";
+          audioEl.preload = "auto";
           document.body.appendChild(audioEl);
           audioRefs.current.set(clip.id, audioEl);
         }
         
-        if (Math.abs(audioEl.currentTime - targetTime) > 0.1) {
+        // Only seek when paused or significantly out of sync
+        const syncThreshold = isPlaying ? 0.5 : 0.05;
+        if (Math.abs(audioEl.currentTime - targetTime) > syncThreshold) {
           audioEl.currentTime = Math.max(0, targetTime);
         }
         
