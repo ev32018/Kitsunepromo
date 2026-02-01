@@ -5,7 +5,8 @@ AudioViz is a professional audio visualization web application that creates stun
 
 ## Features
 - **Audio Upload**: Support for MP3, WAV, OGG, FLAC files up to 100MB
-- **15 Visualization Styles**: Frequency Bars, Waveform, Circular, Particles, Fluid Waves, 3D Spectrum, Radial Burst, Mountain Range, Spectrum Analyzer, Equalizer, Audio Bars, Perlin Fluid, Audio Blob, Kaleidoscope, Endless Maze
+- **15 Visualization Styles**: Frequency Bars, Waveform, Circular, Particles, Fluid Waves, 3D Spectrum, Radial Burst, Mountain Range, Spectrum Analyzer, Equalizer, Audio Bars, Perlin Fluid, Audio Blob, Kaleidoscope, Endless Maze (hexagonal energy network)
+- **Custom Image Effects**: Upload images with audio-reactive effects (pulse, wave distortion, color shift, glitch, zoom)
 - **8 Color Schemes**: Neon, Sunset, Ocean, Galaxy, Fire, Matrix, Pastel, Monochrome
 - **Custom Color Schemes**: Create custom color palettes with up to 8 colors
 - **AI Background Generation**: Generate custom backgrounds using OpenAI's image generation

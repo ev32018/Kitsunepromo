@@ -54,14 +54,17 @@ export function drawVisualization(
   colorScheme: ColorScheme,
   config: Partial<VisualizerConfig> = {},
   backgroundImage?: HTMLImageElement | null,
-  customColors?: string[]
+  customColors?: string[],
+  skipBackgroundFill?: boolean
 ): void {
   const cfg = { ...defaultConfig, ...config };
   const colors = customColors && customColors.length > 0 ? customColors : colorSchemes[colorScheme];
   const { width, height } = canvas;
 
-  ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
-  ctx.fillRect(0, 0, width, height);
+  if (!skipBackgroundFill) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+    ctx.fillRect(0, 0, width, height);
+  }
 
   if (backgroundImage) {
     ctx.globalAlpha = 0.3;
@@ -905,52 +908,58 @@ function drawKaleidoscope(
   ctx.shadowBlur = 0;
 }
 
-// Maze state for persistent evolving maze
-let mazeGrid: number[][] = [];
-let mazeTime = 0;
-let lastMazeUpdate = 0;
-
-function initMazeGrid(cols: number, rows: number): void {
-  mazeGrid = [];
-  for (let y = 0; y < rows; y++) {
-    mazeGrid[y] = [];
-    for (let x = 0; x < cols; x++) {
-      mazeGrid[y][x] = Math.random() > 0.35 ? 1 : 0;
-    }
-  }
+// Hexagonal grid state for flowing energy network
+interface HexNode {
+  x: number;
+  y: number;
+  energy: number;
+  targetEnergy: number;
+  phase: number;
+  connections: number[];
 }
 
-function evolveMaze(cols: number, rows: number, intensity: number): void {
-  const newGrid: number[][] = [];
+let hexNodes: HexNode[] = [];
+let energyPulses: { from: number; to: number; progress: number; color: number }[] = [];
+let lastHexInit = 0;
+
+function initHexGrid(width: number, height: number, spacing: number): void {
+  hexNodes = [];
+  const hexWidth = spacing * 1.5;
+  const hexHeight = spacing * Math.sqrt(3);
   
-  for (let y = 0; y < rows; y++) {
-    newGrid[y] = [];
-    for (let x = 0; x < cols; x++) {
-      let neighbors = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) continue;
-          const ny = (y + dy + rows) % rows;
-          const nx = (x + dx + cols) % cols;
-          neighbors += mazeGrid[ny]?.[nx] || 0;
+  const cols = Math.ceil(width / hexWidth) + 2;
+  const rows = Math.ceil(height / (hexHeight * 0.75)) + 2;
+  
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = col * hexWidth + (row % 2) * (hexWidth / 2);
+      const y = row * hexHeight * 0.75;
+      
+      const nodeIndex = hexNodes.length;
+      const connections: number[] = [];
+      
+      if (col > 0) connections.push(nodeIndex - 1);
+      if (row > 0) {
+        const prevRowStart = (row - 1) * cols;
+        if (row % 2 === 0) {
+          if (col > 0) connections.push(prevRowStart + col - 1);
+          connections.push(prevRowStart + col);
+        } else {
+          connections.push(prevRowStart + col);
+          if (col < cols - 1) connections.push(prevRowStart + col + 1);
         }
       }
       
-      const current = mazeGrid[y]?.[x] || 0;
-      
-      if (current === 1) {
-        newGrid[y][x] = (neighbors >= 2 && neighbors <= 4) ? 1 : 0;
-      } else {
-        newGrid[y][x] = (neighbors === 3 || (intensity > 0.6 && neighbors === 2)) ? 1 : 0;
-      }
-      
-      if (Math.random() < intensity * 0.02) {
-        newGrid[y][x] = 1 - newGrid[y][x];
-      }
+      hexNodes.push({
+        x,
+        y,
+        energy: Math.random() * 0.3,
+        targetEnergy: 0,
+        phase: Math.random() * Math.PI * 2,
+        connections
+      });
     }
   }
-  
-  mazeGrid = newGrid;
 }
 
 function drawEndlessMaze(
@@ -961,131 +970,268 @@ function drawEndlessMaze(
   config: VisualizerConfig
 ): void {
   const { width, height } = canvas;
-  const { frequencyData, bassLevel, midLevel, trebleLevel, averageFrequency } = audioData;
+  const { frequencyData, bassLevel, midLevel, trebleLevel } = audioData;
   const time = Date.now() * 0.001;
   
-  const cellSize = 16;
-  const cols = Math.ceil(width / cellSize);
-  const rows = Math.ceil(height / cellSize);
+  const spacing = 50;
+  const bassNorm = bassLevel / 255;
+  const midNorm = midLevel / 255;
+  const trebleNorm = trebleLevel / 255;
+  
+  if (hexNodes.length === 0 || Date.now() - lastHexInit > 10000) {
+    initHexGrid(width + spacing * 2, height + spacing * 2, spacing);
+    lastHexInit = Date.now();
+  }
+  
+  hexNodes.forEach((node, i) => {
+    const freqIndex = Math.floor((i / hexNodes.length) * (frequencyData.length / 2));
+    node.targetEnergy = (frequencyData[freqIndex] / 255) * config.sensitivity;
+    node.energy += (node.targetEnergy - node.energy) * 0.15;
+    node.phase += 0.02 + node.energy * 0.05;
+  });
+  
+  if (bassNorm > 0.5 && Math.random() < bassNorm * 0.3) {
+    const startNode = Math.floor(Math.random() * hexNodes.length);
+    const node = hexNodes[startNode];
+    if (node.connections.length > 0) {
+      const endNode = node.connections[Math.floor(Math.random() * node.connections.length)];
+      energyPulses.push({
+        from: startNode,
+        to: endNode,
+        progress: 0,
+        color: Math.floor(Math.random() * colors.length)
+      });
+    }
+  }
+  
+  energyPulses = energyPulses.filter(pulse => {
+    pulse.progress += 0.03 + bassNorm * 0.04;
+    if (pulse.progress >= 1) {
+      const node = hexNodes[pulse.to];
+      if (node && node.connections.length > 0 && Math.random() < 0.7) {
+        const nextNode = node.connections[Math.floor(Math.random() * node.connections.length)];
+        if (nextNode !== pulse.from) {
+          energyPulses.push({
+            from: pulse.to,
+            to: nextNode,
+            progress: 0,
+            color: pulse.color
+          });
+        }
+      }
+      return false;
+    }
+    return true;
+  });
+  
+  if (energyPulses.length > 100) {
+    energyPulses = energyPulses.slice(-80);
+  }
+  
+  ctx.lineCap = 'round';
+  hexNodes.forEach((node, i) => {
+    node.connections.forEach(connIndex => {
+      if (connIndex < i) return;
+      const connNode = hexNodes[connIndex];
+      if (!connNode) return;
+      
+      const avgEnergy = (node.energy + connNode.energy) / 2;
+      const alpha = Math.min(255, Math.floor(40 + avgEnergy * 150));
+      
+      const colorIndex = Math.floor((i + time) % colors.length);
+      
+      ctx.beginPath();
+      ctx.moveTo(node.x, node.y);
+      ctx.lineTo(connNode.x, connNode.y);
+      ctx.strokeStyle = colors[colorIndex] + alpha.toString(16).padStart(2, '0');
+      ctx.lineWidth = 1 + avgEnergy * 3;
+      ctx.shadowColor = colors[colorIndex];
+      ctx.shadowBlur = avgEnergy * 10 * config.glowIntensity;
+      ctx.stroke();
+    });
+  });
+  
+  energyPulses.forEach(pulse => {
+    const fromNode = hexNodes[pulse.from];
+    const toNode = hexNodes[pulse.to];
+    if (!fromNode || !toNode) return;
+    
+    const x = fromNode.x + (toNode.x - fromNode.x) * pulse.progress;
+    const y = fromNode.y + (toNode.y - fromNode.y) * pulse.progress;
+    
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, 15 + bassNorm * 10);
+    gradient.addColorStop(0, colors[pulse.color] + 'ff');
+    gradient.addColorStop(0.5, colors[pulse.color] + '80');
+    gradient.addColorStop(1, colors[pulse.color] + '00');
+    
+    ctx.beginPath();
+    ctx.arc(x, y, 8 + bassNorm * 6, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = colors[pulse.color];
+    ctx.shadowBlur = 20 * config.glowIntensity;
+    ctx.fill();
+  });
+  
+  hexNodes.forEach((node, i) => {
+    const pulse = Math.sin(node.phase) * 0.3 + 0.7;
+    const size = (4 + node.energy * 12) * pulse;
+    
+    const colorIndex = Math.floor((i * 0.1 + time * 0.5) % colors.length);
+    const nextColorIndex = (colorIndex + 1) % colors.length;
+    
+    const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, size * 2);
+    gradient.addColorStop(0, colors[colorIndex]);
+    gradient.addColorStop(0.6, colors[nextColorIndex] + 'aa');
+    gradient.addColorStop(1, colors[colorIndex] + '00');
+    
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, size, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = colors[colorIndex];
+    ctx.shadowBlur = (5 + node.energy * 15) * config.glowIntensity;
+    ctx.fill();
+    
+    if (node.energy > 0.6) {
+      ctx.beginPath();
+      for (let j = 0; j < 6; j++) {
+        const angle = (j / 6) * Math.PI * 2 + node.phase;
+        const ringSize = size * 2 + node.energy * 10;
+        const px = node.x + Math.cos(angle) * ringSize;
+        const py = node.y + Math.sin(angle) * ringSize;
+        if (j === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = colors[colorIndex] + '40';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  });
+  
+  ctx.shadowBlur = 0;
+}
+
+export interface ImageEffectSettings {
+  enabled: boolean;
+  pulse: boolean;
+  pulseIntensity: number;
+  wave: boolean;
+  waveIntensity: number;
+  colorShift: boolean;
+  colorShiftIntensity: number;
+  glitch: boolean;
+  glitchIntensity: number;
+  zoom: boolean;
+  zoomIntensity: number;
+}
+
+export function applyImageEffects(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  audioData: AudioData,
+  image: HTMLImageElement,
+  effects: ImageEffectSettings
+): void {
+  const { width, height } = canvas;
+  const { bassLevel, midLevel, trebleLevel, timeDomainData } = audioData;
+  const time = Date.now() * 0.001;
   
   const bassNorm = bassLevel / 255;
   const midNorm = midLevel / 255;
   const trebleNorm = trebleLevel / 255;
-  const avgNorm = averageFrequency / 255;
   
-  if (mazeGrid.length !== rows || (mazeGrid[0] && mazeGrid[0].length !== cols)) {
-    initMazeGrid(cols, rows);
+  ctx.save();
+  
+  let scale = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+  
+  if (effects.pulse) {
+    scale += bassNorm * effects.pulseIntensity * 0.15;
   }
   
-  const now = Date.now();
-  const evolveInterval = Math.max(50, 300 - bassNorm * 250);
-  if (now - lastMazeUpdate > evolveInterval) {
-    evolveMaze(cols, rows, avgNorm * config.sensitivity);
-    lastMazeUpdate = now;
-    mazeTime += 0.1;
+  if (effects.zoom) {
+    scale += midNorm * effects.zoomIntensity * 0.1;
   }
   
-  const offsetX = Math.sin(time * 0.3) * cellSize * 0.5 * bassNorm;
-  const offsetY = Math.cos(time * 0.2) * cellSize * 0.5 * midNorm;
+  const imgAspect = image.width / image.height;
+  const canvasAspect = width / height;
   
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const cell = mazeGrid[y]?.[x] || 0;
-      const freqIndex = Math.floor((x / cols) * (frequencyData.length / 4));
-      const freqValue = frequencyData[freqIndex] / 255;
+  let drawWidth: number, drawHeight: number;
+  if (imgAspect > canvasAspect) {
+    drawHeight = height * scale;
+    drawWidth = drawHeight * imgAspect;
+  } else {
+    drawWidth = width * scale;
+    drawHeight = drawWidth / imgAspect;
+  }
+  
+  const drawX = (width - drawWidth) / 2 + offsetX;
+  const drawY = (height - drawHeight) / 2 + offsetY;
+  
+  if (effects.wave) {
+    const segments = 20;
+    const segHeight = height / segments;
+    
+    for (let i = 0; i < segments; i++) {
+      const waveOffset = Math.sin(time * 2 + i * 0.3) * midNorm * effects.waveIntensity * 30;
       
-      const px = x * cellSize + offsetX;
-      const py = y * cellSize + offsetY;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, i * segHeight, width, segHeight + 1);
+      ctx.clip();
       
-      if (cell === 1) {
-        const colorIndex = Math.floor((x + y + mazeTime) % colors.length);
-        const nextColorIndex = (colorIndex + 1) % colors.length;
+      ctx.drawImage(
+        image,
+        drawX + waveOffset,
+        drawY,
+        drawWidth,
+        drawHeight
+      );
+      ctx.restore();
+    }
+  } else {
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  }
+  
+  if (effects.colorShift && trebleNorm > 0.2) {
+    ctx.globalCompositeOperation = 'overlay';
+    const hue = (time * 50 + trebleNorm * 100) % 360;
+    ctx.fillStyle = `hsla(${hue}, 70%, 50%, ${trebleNorm * effects.colorShiftIntensity * 0.3})`;
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  
+  if (effects.glitch && bassNorm > 0.4) {
+    const glitchChance = bassNorm * effects.glitchIntensity;
+    
+    if (Math.random() < glitchChance * 0.3) {
+      const numSlices = Math.floor(3 + Math.random() * 5);
+      
+      for (let i = 0; i < numSlices; i++) {
+        const sliceY = Math.random() * height;
+        const sliceHeight = 5 + Math.random() * 30;
+        const sliceOffset = (Math.random() - 0.5) * 50 * effects.glitchIntensity;
         
-        const pulse = 0.6 + freqValue * 0.4 * config.sensitivity;
-        const size = cellSize * pulse;
-        const offset = (cellSize - size) / 2;
-        
-        const gradient = ctx.createLinearGradient(
-          px, py, px + cellSize, py + cellSize
-        );
-        gradient.addColorStop(0, colors[colorIndex]);
-        gradient.addColorStop(1, colors[nextColorIndex]);
-        
-        ctx.fillStyle = gradient;
-        ctx.shadowColor = colors[colorIndex];
-        ctx.shadowBlur = 8 * config.glowIntensity * (0.5 + freqValue);
-        
-        const cornerRadius = 2 + bassNorm * 3;
-        ctx.beginPath();
-        ctx.roundRect(px + offset, py + offset, size, size, cornerRadius);
-        ctx.fill();
-      } else {
-        const pathGlow = freqValue * 0.15 * config.sensitivity;
-        if (pathGlow > 0.02) {
-          const colorIndex = Math.floor((x - y + mazeTime * 2) % colors.length);
-          ctx.fillStyle = colors[colorIndex] + Math.floor(pathGlow * 255).toString(16).padStart(2, '0');
-          ctx.fillRect(px, py, cellSize, cellSize);
+        try {
+          const imageData = ctx.getImageData(0, sliceY, width, sliceHeight);
+          ctx.putImageData(imageData, sliceOffset, sliceY);
+        } catch (e) {
         }
       }
     }
-  }
-  
-  ctx.shadowBlur = 0;
-  
-  const pathPoints: { x: number; y: number }[] = [];
-  let pathX = Math.floor(cols / 2);
-  let pathY = Math.floor(rows / 2);
-  
-  for (let i = 0; i < 50; i++) {
-    const freqIndex = Math.floor((i / 50) * (frequencyData.length / 2));
-    const freqValue = frequencyData[freqIndex] / 255;
     
-    pathPoints.push({
-      x: pathX * cellSize + cellSize / 2 + offsetX,
-      y: pathY * cellSize + cellSize / 2 + offsetY
-    });
-    
-    const directions = [
-      { dx: 1, dy: 0 },
-      { dx: -1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: 0, dy: -1 }
-    ];
-    
-    const freqDir = Math.floor(freqValue * 4) % 4;
-    const dir = directions[freqDir];
-    
-    pathX = (pathX + dir.dx + cols) % cols;
-    pathY = (pathY + dir.dy + rows) % rows;
-  }
-  
-  if (pathPoints.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
-    
-    for (let i = 1; i < pathPoints.length; i++) {
-      const prev = pathPoints[i - 1];
-      const curr = pathPoints[i];
-      const cpx = (prev.x + curr.x) / 2;
-      const cpy = (prev.y + curr.y) / 2;
-      ctx.quadraticCurveTo(prev.x, prev.y, cpx, cpy);
+    if (Math.random() < glitchChance * 0.2) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255, 0, 0, ${effects.glitchIntensity * 0.1})`;
+      ctx.fillRect(2, 0, width, height);
+      ctx.fillStyle = `rgba(0, 255, 255, ${effects.glitchIntensity * 0.1})`;
+      ctx.fillRect(-2, 0, width, height);
+      ctx.globalCompositeOperation = 'source-over';
     }
-    
-    const pathGradient = ctx.createLinearGradient(0, 0, width, height);
-    colors.forEach((color, i) => {
-      pathGradient.addColorStop(i / (colors.length - 1), color + '80');
-    });
-    
-    ctx.strokeStyle = pathGradient;
-    ctx.lineWidth = 3 + bassNorm * 4;
-    ctx.shadowColor = colors[0];
-    ctx.shadowBlur = 15 * config.glowIntensity;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
   }
   
-  ctx.shadowBlur = 0;
+  ctx.restore();
 }
 
 export function clearParticles(): void {

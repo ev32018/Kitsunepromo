@@ -10,6 +10,7 @@ import { AIBackgroundGenerator } from "@/components/AIBackgroundGenerator";
 import { PresetManager } from "@/components/PresetManager";
 import { OverlaySettings } from "@/components/OverlaySettings";
 import { CustomColorPicker } from "@/components/CustomColorPicker";
+import { ImageEffectsSettings, defaultImageEffects, type ImageEffectSettings } from "@/components/ImageEffectsSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,8 @@ export default function Home() {
   const [overlayPosition, setOverlayPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right" | "center">("bottom-right");
   const [bpm, setBpm] = useState<number | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [customImage, setCustomImage] = useState<string | null>(null);
+  const [imageEffects, setImageEffects] = useState<ImageEffectSettings>(defaultImageEffects);
 
   const visualizerRef = useRef<VisualizerCanvasHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -317,6 +320,15 @@ export default function Home() {
 
               <Separator className="bg-border/50" />
 
+              <ImageEffectsSettings
+                imageUrl={customImage}
+                onImageChange={setCustomImage}
+                effects={imageEffects}
+                onEffectsChange={setImageEffects}
+              />
+
+              <Separator className="bg-border/50" />
+
               <ExportControls
                 canvasRef={visualizerRef}
                 audioElement={audioElement}
@@ -351,6 +363,8 @@ export default function Home() {
                     backgroundImage={aiBackground}
                     overlayText={overlayText}
                     overlayPosition={overlayPosition}
+                    customImage={customImage}
+                    imageEffects={imageEffects}
                   />
                   <Button
                     size="icon"

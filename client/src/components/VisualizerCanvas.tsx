@@ -1,7 +1,8 @@
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { AudioAnalyzer } from "@/lib/audioAnalyzer";
-import { drawVisualization, clearParticles, resetRotation } from "@/lib/visualizers";
+import { drawVisualization, clearParticles, resetRotation, applyImageEffects } from "@/lib/visualizers";
 import type { VisualizationType, ColorScheme } from "@shared/schema";
+import type { ImageEffectSettings } from "@/components/ImageEffectsSettings";
 
 interface VisualizerCanvasProps {
   audioElement: HTMLAudioElement | null;
@@ -18,6 +19,8 @@ interface VisualizerCanvasProps {
   backgroundImage?: string | null;
   overlayText?: string;
   overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+  customImage?: string | null;
+  imageEffects?: ImageEffectSettings;
 }
 
 export interface VisualizerCanvasHandle {
@@ -41,6 +44,8 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       backgroundImage,
       overlayText,
       overlayPosition = "bottom-right",
+      customImage,
+      imageEffects,
     },
     ref
   ) => {
@@ -48,6 +53,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
     const analyzerRef = useRef<AudioAnalyzer | null>(null);
     const animationFrameRef = useRef<number>();
     const bgImageRef = useRef<HTMLImageElement | null>(null);
+    const customImageRef = useRef<HTMLImageElement | null>(null);
 
     useImperativeHandle(ref, () => ({
       getCanvas: () => canvasRef.current,
@@ -65,6 +71,19 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
         bgImageRef.current = null;
       }
     }, [backgroundImage]);
+
+    useEffect(() => {
+      if (customImage) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          customImageRef.current = img;
+        };
+        img.src = customImage;
+      } else {
+        customImageRef.current = null;
+      }
+    }, [customImage]);
 
     useEffect(() => {
       if (!audioElement) return;
@@ -160,6 +179,12 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
 
       const audioData = analyzer.getAudioData();
 
+      const hasImageEffects = !!(customImageRef.current && imageEffects?.enabled);
+      
+      if (hasImageEffects) {
+        applyImageEffects(ctx, canvas, audioData, customImageRef.current!, imageEffects);
+      }
+
       drawVisualization(
         ctx,
         canvas,
@@ -176,8 +201,9 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
           smoothing: 0.8,
           colorIntensity: 1,
         },
-        bgImageRef.current,
-        customColors
+        hasImageEffects ? null : bgImageRef.current,
+        customColors,
+        hasImageEffects
       );
 
       drawOverlay(ctx, canvas);
@@ -194,6 +220,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
       rotationSpeed,
       mirrorMode,
       drawOverlay,
+      imageEffects,
     ]);
 
     useEffect(() => {
