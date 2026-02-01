@@ -76,6 +76,11 @@ Kitsune Promo is a professional audio visualization web application that creates
   - Custom Frequency Bands: Configurable bass/mid/treble frequency ranges
   - Smooth Transitions: Crossfade between visualization styles
 - **Performance Optimizations**: Frame rate throttling, canvas caching, optimized rendering loop
+- **UX Improvements**:
+  - Dark/Light Theme Toggle: Switch between dark and light modes with persistent preference
+  - Real-time Audio Level Meters: Visual bass/mid/treble level indicators during playback
+  - Randomize Button: One-click randomization of all visualization settings for inspiration
+  - Quick Start Guide: Interactive onboarding walkthrough for new users
 
 ## Tech Stack
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI
