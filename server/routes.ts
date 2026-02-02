@@ -3,12 +3,24 @@ import { createServer, type Server } from "http";
 import express from "express";
 import { storage } from "./storage";
 import { insertVisualizationProjectSchema, insertPresetSchema } from "@shared/schema";
-import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+async function getOpenAIClient() {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+
+  try {
+    const { default: OpenAI } = await import("openai");
+    return new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  } catch (error) {
+    console.warn("OpenAI client unavailable:", error);
+    return null;
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -137,6 +149,13 @@ export async function registerRoutes(
 
       const enhancedPrompt = `Create an abstract, artistic background suitable for audio visualization. Style: ${prompt}. The image should be visually striking with deep blacks and vibrant colors, perfect for overlaying audio visualizations. No text, no people, purely abstract and atmospheric.`;
 
+      const openai = await getOpenAIClient();
+      if (!openai) {
+        return res.status(503).json({
+          error: "OpenAI is not configured for this environment",
+        });
+      }
+
       const response = await openai.images.generate({
         model: "gpt-image-1",
         prompt: enhancedPrompt,
@@ -144,7 +163,7 @@ export async function registerRoutes(
         n: 1,
       });
 
-      const imageBase64 = response.data[0]?.b64_json;
+      const imageBase64 = response.data?.[0]?.b64_json;
       if (!imageBase64) {
         throw new Error("No image generated");
       }

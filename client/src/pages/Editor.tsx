@@ -1697,7 +1697,7 @@ export default function Editor() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("split");
   const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
   const timelineRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
 
   useEffect(() => {

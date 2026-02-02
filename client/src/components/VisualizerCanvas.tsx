@@ -43,7 +43,16 @@ interface VisualizerCanvasProps {
   peakHold?: boolean;
   backgroundImage?: string | null;
   overlayText?: string;
-  overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+  overlayPosition?:
+    | "top-left"
+    | "top-center"
+    | "top-right"
+    | "center-left"
+    | "center"
+    | "center-right"
+    | "bottom-left"
+    | "bottom-center"
+    | "bottom-right";
   customImage?: string | null;
   imageEffects?: ImageEffectSettings;
   blendMode?: BlendMode;
@@ -96,7 +105,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
   ) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const analyzerRef = useRef<AudioAnalyzer | null>(null);
-    const animationFrameRef = useRef<number>();
+    const animationFrameRef = useRef<number | null>(null);
     const bgImageRef = useRef<HTMLImageElement | null>(null);
     const customImageRef = useRef<HTMLImageElement | null>(null);
     const lastTimeRef = useRef<number>(Date.now());

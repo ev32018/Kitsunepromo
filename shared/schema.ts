@@ -66,7 +66,16 @@ export interface VisualizationPreset {
   customColors?: string[];
   settings: VisualizationSettings;
   overlayText?: string;
-  overlayPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+  overlayPosition?:
+    | "top-left"
+    | "top-center"
+    | "top-right"
+    | "center-left"
+    | "center"
+    | "center-right"
+    | "bottom-left"
+    | "bottom-center"
+    | "bottom-right";
 }
 
 export const visualizationPresets = pgTable("visualization_presets", {
