@@ -35,6 +35,7 @@ const initialState: TimelineState = {
   zoom: 1,
   isPlaying: false,
   selectedClipId: null,
+  selectedClipIds: [],
   selectedTrackId: null,
 };
 
@@ -323,6 +324,7 @@ export function useTimelineState() {
         ...prev,
         clips: prev.clips.filter((c) => !idsToRemove.has(c.id)),
         selectedClipId: idsToRemove.has(prev.selectedClipId || "") ? null : prev.selectedClipId,
+        selectedClipIds: (prev.selectedClipIds || []).filter((id) => !idsToRemove.has(id)),
       };
       saveToHistory(newState);
       return newState;
@@ -354,14 +356,17 @@ export function useTimelineState() {
     });
   }, [saveToHistory]);
 
-  const resizeClip = useCallback((clipId: string, newDuration: number, trimStart?: boolean) => {
+  const resizeClip = useCallback((clipId: string, newStartTime: number, newDuration: number) => {
     setState((prev) => {
       const clip = prev.clips.find((c) => c.id === clipId);
       if (!clip) return prev;
       const track = prev.tracks.find((t) => t.id === clip.trackId);
       if (track?.locked) return prev;
       
-      const delta = clip.duration - newDuration;
+      const clampedStart = Math.max(0, newStartTime);
+      const clampedDuration = Math.max(0.5, newDuration);
+      const trimStart = clampedStart !== clip.startTime;
+      const deltaStart = clampedStart - clip.startTime;
       
       const newState = {
         ...prev,
@@ -370,24 +375,24 @@ export function useTimelineState() {
             if (trimStart) {
               return {
                 ...c,
-                startTime: c.startTime + delta,
-                duration: Math.max(0.5, newDuration),
-                trimIn: c.trimIn + delta,
+                startTime: clampedStart,
+                duration: clampedDuration,
+                trimIn: Math.max(0, c.trimIn + deltaStart),
               };
             }
-            return { ...c, duration: Math.max(0.5, newDuration) };
+            return { ...c, duration: clampedDuration };
           }
           // Also resize linked clips
           if (c.linkedClipId === clipId) {
             if (trimStart) {
               return {
                 ...c,
-                startTime: c.startTime + delta,
-                duration: Math.max(0.5, newDuration),
-                trimIn: c.trimIn + delta,
+                startTime: clampedStart,
+                duration: clampedDuration,
+                trimIn: Math.max(0, c.trimIn + deltaStart),
               };
             }
-            return { ...c, duration: Math.max(0.5, newDuration) };
+            return { ...c, duration: clampedDuration };
           }
           return c;
         }),
@@ -453,19 +458,40 @@ export function useTimelineState() {
     });
   }, [saveToHistory]);
 
-  const selectClip = useCallback((clipId: string | null) => {
-    setState((prev) => ({ ...prev, selectedClipId: clipId }));
+  const selectClip = useCallback((clipId: string | null, additive = false) => {
+    setState((prev) => {
+      if (!clipId) {
+        return { ...prev, selectedClipId: null, selectedClipIds: [] };
+      }
+      const current = prev.selectedClipIds || [];
+      let next: string[] = [];
+      if (additive) {
+        if (current.includes(clipId)) {
+          next = current.filter((id) => id !== clipId);
+        } else {
+          next = [...current, clipId];
+        }
+      } else {
+        next = [clipId];
+      }
+      const primary = next[0] ?? null;
+      return { ...prev, selectedClipId: primary, selectedClipIds: next };
+    });
   }, []);
 
   const selectTrack = useCallback((trackId: string | null) => {
     setState((prev) => ({ ...prev, selectedTrackId: trackId }));
   }, []);
 
-  const setPlayhead = useCallback((time: number) => {
-    setState((prev) => ({
-      ...prev,
-      playhead: Math.max(0, Math.min(time, prev.project.duration)),
-    }));
+  const setPlayhead = useCallback((time: number, snap = true) => {
+    setState((prev) => {
+      const step = 1 / prev.project.fps;
+      const snapped = snap ? Math.round(time / step) * step : time;
+      return {
+        ...prev,
+        playhead: Math.max(0, Math.min(snapped, prev.project.duration)),
+      };
+    });
   }, []);
 
   const setZoom = useCallback((zoom: number) => {
@@ -496,13 +522,16 @@ export function useTimelineState() {
     return state.clips.filter((clip) => clip.trackId === trackId);
   }, [state.clips]);
 
-  const addMediaFile = useCallback((file: File, type: MediaFileType) => {
+  const addMediaFile = useCallback((file: File, type: MediaFileType, metadata?: { duration?: number; sizeBytes?: number }) => {
     const url = URL.createObjectURL(file);
     const mediaFile: MediaFile = {
       id: generateId(),
       name: file.name,
       type,
       url,
+      duration: metadata?.duration,
+      sizeBytes: metadata?.sizeBytes ?? file.size,
+      addedAt: Date.now(),
     };
     
     setState((prev) => ({
@@ -528,11 +557,14 @@ export function useTimelineState() {
 
   const deleteSelectedClip = useCallback(() => {
     setState((prev) => {
-      if (!prev.selectedClipId) return prev;
+      const selectedIds = prev.selectedClipIds?.length ? prev.selectedClipIds : prev.selectedClipId ? [prev.selectedClipId] : [];
+      if (selectedIds.length === 0) return prev;
+      const selectedSet = new Set(selectedIds);
       const newState = {
         ...prev,
-        clips: prev.clips.filter((c) => c.id !== prev.selectedClipId),
+        clips: prev.clips.filter((c) => !selectedSet.has(c.id)),
         selectedClipId: null,
+        selectedClipIds: [],
       };
       saveToHistory(newState);
       return newState;

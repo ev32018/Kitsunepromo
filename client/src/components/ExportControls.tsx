@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Download, Video, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getCachedAudioNodes, setCachedOutputGain } from "@/lib/audioAnalyzer";
 import type { VisualizerCanvasHandle } from "@/components/VisualizerCanvas";
 import type { AspectRatio } from "@/components/AspectRatioSettings";
 
@@ -65,6 +66,19 @@ export function ExportControls({
   const [exportComplete, setExportComplete] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const cancelRef = useRef(false);
+  const stopTimerRef = useRef<number | null>(null);
+  const previousLoopRef = useRef<boolean | null>(null);
+  const previousOnEndedRef = useRef<HTMLMediaElement["onended"]>(null);
+  const previousAudioStateRef = useRef<{
+    currentTime: number;
+    paused: boolean;
+    muted: boolean;
+    volume: number;
+    playbackRate: number;
+    loop: boolean;
+    outputGain: number | null;
+  } | null>(null);
   const { toast } = useToast();
 
   // Handle loop preview by setting audio element loop property
@@ -93,17 +107,31 @@ export function ExportControls({
     if (!canvas || !audioElement) {
       toast({
         title: "Export failed",
-        description: "Please load audio and start playing before exporting.",
+        description: "Please load audio before exporting.",
         variant: "destructive",
       });
       return;
     }
 
     try {
+      const fallbackDuration = audioElement.seekable.length
+        ? audioElement.seekable.end(audioElement.seekable.length - 1)
+        : 0;
+      const durationSeconds = Number.isFinite(audioElement.duration) ? audioElement.duration : fallbackDuration;
+      if (!durationSeconds || durationSeconds <= 0) {
+        toast({
+          title: "Export failed",
+          description: "Unable to determine audio duration. Please try again after the audio loads.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsExporting(true);
       setExportProgress(0);
       setExportComplete(false);
       chunksRef.current = [];
+      cancelRef.current = false;
 
       const { width, height } = getExportDimensions(quality, aspectRatio);
       
@@ -117,20 +145,101 @@ export function ExportControls({
       exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
       const stream = exportCanvas.captureStream(frameRate);
-      
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaElementSource(audioElement);
-      const destination = audioContext.createMediaStreamDestination();
-      source.connect(destination);
-      source.connect(audioContext.destination);
 
-      destination.stream.getAudioTracks().forEach(track => {
-        stream.addTrack(track);
-      });
+      let audioContext: AudioContext | null = null;
+      let source: MediaElementAudioSourceNode | null = null;
+      let destination: MediaStreamAudioDestinationNode | null = null;
+      let addedAudio = false;
 
-      const mimeType = format === "webm" ? "video/webm;codecs=vp9" : "video/mp4";
+      const captureStream = (audioElement as HTMLMediaElement & { captureStream?: () => MediaStream }).captureStream;
+      if (captureStream) {
+        const audioStream = captureStream.call(audioElement);
+        audioStream.getAudioTracks().forEach((track: MediaStreamTrack) => {
+          stream.addTrack(track);
+          addedAudio = true;
+        });
+      }
+
+      if (!addedAudio) {
+        const cached = getCachedAudioNodes(audioElement);
+        if (cached) {
+          audioContext = cached.context;
+          source = cached.source;
+          destination = audioContext.createMediaStreamDestination();
+          source.connect(destination);
+          destination.stream.getAudioTracks().forEach((track) => {
+            stream.addTrack(track);
+            addedAudio = true;
+          });
+          if (audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
+        } else {
+          audioContext = new AudioContext();
+          try {
+            source = audioContext.createMediaElementSource(audioElement);
+            destination = audioContext.createMediaStreamDestination();
+            source.connect(destination);
+            destination.stream.getAudioTracks().forEach((track) => {
+              stream.addTrack(track);
+              addedAudio = true;
+            });
+            if (audioContext.state === "suspended") {
+              await audioContext.resume();
+            }
+          } catch (error) {
+            audioContext.close();
+            setIsExporting(false);
+            toast({
+              title: "Export failed",
+              description: "Audio capture is not available in this browser session.",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+      }
+
+      if (!addedAudio) {
+        setIsExporting(false);
+        toast({
+          title: "Export failed",
+          description: "No audio track could be captured. Please try again or use a different browser.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const preferredTypes =
+        format === "mp4"
+          ? ["video/mp4;codecs=h264", "video/mp4"]
+          : ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+      const fallbackTypes = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+      const supportedType =
+        preferredTypes.find((type) => MediaRecorder.isTypeSupported(type)) ||
+        fallbackTypes.find((type) => MediaRecorder.isTypeSupported(type)) ||
+        "";
+
+      if (!supportedType) {
+        setIsExporting(false);
+        toast({
+          title: "Export failed",
+          description: "This browser does not support recording the selected format.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const actualFormat: ExportFormat = supportedType.includes("mp4") ? "mp4" : "webm";
+      if (format === "mp4" && actualFormat !== "mp4") {
+        toast({
+          title: "MP4 not supported",
+          description: "Falling back to WebM for this export.",
+        });
+      }
+
       const recorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : "video/webm",
+        mimeType: supportedType,
         videoBitsPerSecond: quality === "1440p" ? 12000000 : quality === "1080p" ? 8000000 : 5000000,
       });
 
@@ -141,32 +250,96 @@ export function ExportControls({
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `visualization-${Date.now()}.${format}`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
+        if (stopTimerRef.current) {
+          window.clearTimeout(stopTimerRef.current);
+          stopTimerRef.current = null;
+        }
+
+        if (!cancelRef.current) {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `visualization-${Date.now()}.${actualFormat}`;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          setExportComplete(true);
+
+          toast({
+            title: "Export complete",
+            description: "Your visualization video has been downloaded.",
+          });
+
+          setTimeout(() => setExportComplete(false), 3000);
+        }
+
         setIsExporting(false);
-        setExportComplete(true);
-        source.disconnect();
-        audioContext.close();
-        
-        toast({
-          title: "Export complete",
-          description: "Your visualization video has been downloaded.",
-        });
-        
-        setTimeout(() => setExportComplete(false), 3000);
+        onPlayStateChange(false);
+        canvasRef.current?.setExporting(false);
+        const previous = previousAudioStateRef.current;
+        if (previous) {
+          audioElement.currentTime = previous.currentTime;
+          audioElement.muted = previous.muted;
+          audioElement.volume = previous.volume;
+          audioElement.playbackRate = previous.playbackRate;
+          audioElement.loop = previous.loop;
+          if (previous.outputGain !== null) {
+            setCachedOutputGain(audioElement, previous.outputGain);
+          }
+          if (!previous.paused) {
+            audioElement.play().catch(() => {});
+          }
+        }
+        if (previousLoopRef.current !== null) {
+          audioElement.loop = previousLoopRef.current;
+        }
+        if (previousOnEndedRef.current !== null) {
+          audioElement.onended = previousOnEndedRef.current;
+        }
+        if (source && destination) {
+          source.disconnect(destination);
+        }
+        destination?.disconnect();
+        if (audioContext && audioContext !== getCachedAudioNodes(audioElement)?.context) {
+          audioContext.close();
+        }
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       recorder.onerror = (e) => {
         console.error("MediaRecorder error:", e);
         setIsExporting(false);
-        source.disconnect();
-        audioContext.close();
+        onPlayStateChange(false);
+        canvasRef.current?.setExporting(false);
+        const previous = previousAudioStateRef.current;
+        if (previous) {
+          audioElement.currentTime = previous.currentTime;
+          audioElement.muted = previous.muted;
+          audioElement.volume = previous.volume;
+          audioElement.playbackRate = previous.playbackRate;
+          audioElement.loop = previous.loop;
+          if (previous.outputGain !== null) {
+            setCachedOutputGain(audioElement, previous.outputGain);
+          }
+          if (!previous.paused) {
+            audioElement.play().catch(() => {});
+          }
+        }
+        if (previousLoopRef.current !== null) {
+          audioElement.loop = previousLoopRef.current;
+        }
+        if (previousOnEndedRef.current !== null) {
+          audioElement.onended = previousOnEndedRef.current;
+        }
+        if (source && destination) {
+          source.disconnect(destination);
+        }
+        destination?.disconnect();
+        if (audioContext && audioContext !== getCachedAudioNodes(audioElement)?.context) {
+          audioContext.close();
+        }
+        stream.getTracks().forEach((track) => track.stop());
         toast({
           title: "Export failed",
           description: "An error occurred while recording. Please try again.",
@@ -177,11 +350,29 @@ export function ExportControls({
       mediaRecorderRef.current = recorder;
       recorder.start(100);
 
+      previousLoopRef.current = audioElement.loop;
+      previousOnEndedRef.current = audioElement.onended;
+      previousAudioStateRef.current = {
+        currentTime: audioElement.currentTime,
+        paused: audioElement.paused,
+        muted: audioElement.muted,
+        volume: audioElement.volume,
+        playbackRate: audioElement.playbackRate,
+        loop: audioElement.loop,
+        outputGain: getCachedAudioNodes(audioElement)?.outputGain.gain.value ?? null,
+      };
+      audioElement.loop = false;
+      audioElement.playbackRate = 1;
+      audioElement.muted = true;
+      audioElement.volume = 0;
+      setCachedOutputGain(audioElement, 0);
+      audioElement.pause();
       audioElement.currentTime = 0;
       await audioElement.play();
       onPlayStateChange(true);
+      canvasRef.current?.setExporting(true);
 
-      const duration = audioElement.duration * 1000;
+      const duration = durationSeconds * 1000;
       const startTime = Date.now();
 
       const fadeInDuration = fadeIn * 1000;
@@ -240,12 +431,31 @@ export function ExportControls({
         
         if (elapsed < duration) {
           requestAnimationFrame(drawLoop);
+        } else if (mediaRecorderRef.current?.state === "recording") {
+          mediaRecorderRef.current.stop();
         }
       };
 
       drawLoop();
 
+      stopTimerRef.current = window.setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          mediaRecorderRef.current.stop();
+        }
+        audioElement.pause();
+        if (previousLoopRef.current !== null) {
+          audioElement.loop = previousLoopRef.current;
+        }
+        onPlayStateChange(false);
+      }, duration + 250);
+
       audioElement.onended = () => {
+        if (previousLoopRef.current !== null) {
+          audioElement.loop = previousLoopRef.current;
+        }
+        if (previousOnEndedRef.current) {
+          previousOnEndedRef.current.call(audioElement, new Event("ended"));
+        }
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
           mediaRecorderRef.current.stop();
           onPlayStateChange(false);
@@ -254,6 +464,7 @@ export function ExportControls({
     } catch (error) {
       console.error("Export error:", error);
       setIsExporting(false);
+      canvasRef.current?.setExporting(false);
       toast({
         title: "Export failed",
         description: "Failed to start recording. Please try again.",
@@ -263,14 +474,40 @@ export function ExportControls({
   }, [canvasRef, audioElement, quality, format, frameRate, fadeIn, fadeOut, aspectRatio, letterboxColor, onPlayStateChange, toast]);
 
   const cancelExport = useCallback(() => {
+    cancelRef.current = true;
+    if (stopTimerRef.current) {
+      window.clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
     }
     if (audioElement) {
       audioElement.pause();
       audioElement.currentTime = 0;
+      if (previousLoopRef.current !== null) {
+        audioElement.loop = previousLoopRef.current;
+      }
+      if (previousOnEndedRef.current !== null) {
+        audioElement.onended = previousOnEndedRef.current;
+      }
+      const previous = previousAudioStateRef.current;
+      if (previous) {
+        audioElement.currentTime = previous.currentTime;
+        audioElement.muted = previous.muted;
+        audioElement.volume = previous.volume;
+        audioElement.playbackRate = previous.playbackRate;
+        audioElement.loop = previous.loop;
+        if (previous.outputGain !== null) {
+          setCachedOutputGain(audioElement, previous.outputGain);
+        }
+        if (!previous.paused) {
+          audioElement.play().catch(() => {});
+        }
+      }
     }
     onPlayStateChange(false);
+    canvasRef.current?.setExporting(false);
     setIsExporting(false);
     setExportProgress(0);
     toast({

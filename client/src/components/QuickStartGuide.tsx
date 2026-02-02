@@ -86,7 +86,7 @@ export function QuickStartGuide({ onDismiss, hasAudio }: QuickStartGuideProps) {
   const StepIcon = step.icon;
 
   return (
-    <Card className="fixed bottom-4 right-4 w-80 z-50 shadow-lg border-primary/20" data-testid="quick-start-guide">
+    <Card className="fixed bottom-20 sm:bottom-4 left-4 right-4 sm:left-auto sm:right-4 w-auto sm:w-80 max-w-[22rem] sm:max-w-none z-50 shadow-lg border-primary/20" data-testid="quick-start-guide">
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
           <Badge variant="secondary" className="text-xs">

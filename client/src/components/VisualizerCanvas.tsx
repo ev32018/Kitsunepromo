@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useState } from "react";
 import { AudioAnalyzer } from "@/lib/audioAnalyzer";
 import { 
   drawVisualization, 
@@ -66,6 +66,7 @@ interface VisualizerCanvasProps {
 
 export interface VisualizerCanvasHandle {
   getCanvas: () => HTMLCanvasElement | null;
+  setExporting: (active: boolean) => void;
 }
 
 export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCanvasProps>(
@@ -109,9 +110,11 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
     const bgImageRef = useRef<HTMLImageElement | null>(null);
     const customImageRef = useRef<HTMLImageElement | null>(null);
     const lastTimeRef = useRef<number>(Date.now());
+    const [exportActive, setExportActive] = useState(false);
 
     useImperativeHandle(ref, () => ({
       getCanvas: () => canvasRef.current,
+      setExporting: (active: boolean) => setExportActive(active),
     }));
 
     useEffect(() => {
@@ -360,7 +363,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
     ]);
 
     useEffect(() => {
-      if (isPlaying) {
+      if (isPlaying || exportActive) {
         analyzerRef.current?.resume();
         animationFrameRef.current = requestAnimationFrame(draw);
       } else {
@@ -374,7 +377,7 @@ export const VisualizerCanvas = forwardRef<VisualizerCanvasHandle, VisualizerCan
           cancelAnimationFrame(animationFrameRef.current);
         }
       };
-    }, [isPlaying, draw]);
+    }, [isPlaying, exportActive, draw]);
 
     useEffect(() => {
       clearParticles();

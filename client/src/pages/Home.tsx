@@ -363,10 +363,41 @@ export default function Home() {
     trebleEnd: 100,
   }), [sensitivity, barCount, particleCount, glowIntensity, rotationSpeed, mirrorMode, motionBlur, motionBlurIntensity, audioDucking, bloomEnabled, bloomIntensity, peakHold]);
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const bodyOverflowRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      const isDesktop = window.innerWidth >= 1024;
+      setSidebarOpen(isDesktop);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isMobile = window.innerWidth < 1024;
+    if (sidebarOpen && isMobile) {
+      if (bodyOverflowRef.current === null) {
+        bodyOverflowRef.current = document.body.style.overflow;
+      }
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = bodyOverflowRef.current ?? "";
+        bodyOverflowRef.current = null;
+      };
+    }
+    if (bodyOverflowRef.current !== null) {
+      document.body.style.overflow = bodyOverflowRef.current ?? "";
+      bodyOverflowRef.current = null;
+    }
+  }, [sidebarOpen]);
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="min-h-svh bg-background flex flex-col overflow-hidden">
       <div className="flex-1 flex overflow-hidden relative">
         {/* Mobile overlay */}
         {sidebarOpen && (
@@ -825,11 +856,33 @@ export default function Home() {
               </Badge>
             )}
           </div>
+          {!sidebarOpen ? (
+            <Button
+              className="lg:hidden fixed bottom-20 sm:bottom-4 right-4 z-30 shadow-lg"
+              size="sm"
+              onClick={() => setSidebarOpen(true)}
+              data-testid="button-open-settings-fab"
+            >
+              <Menu className="w-4 h-4 mr-2" />
+              Settings
+            </Button>
+          ) : (
+            <Button
+              className="lg:hidden fixed bottom-20 sm:bottom-4 right-4 z-30 shadow-lg"
+              size="sm"
+              variant="secondary"
+              onClick={() => setSidebarOpen(false)}
+              data-testid="button-close-settings-fab"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Close
+            </Button>
+          )}
           
-          <div className="p-2 sm:p-4 flex flex-col gap-2 sm:gap-4 h-full overflow-auto">
+          <div className="p-2 sm:p-4 pb-24 sm:pb-4 flex flex-col gap-2 sm:gap-4 h-full overflow-auto">
             <div 
               ref={containerRef}
-              className={`relative w-full max-h-[50vh] sm:max-h-[60vh] rounded-lg sm:rounded-xl overflow-hidden border border-border/30 ${
+              className={`relative w-full max-h-[45vh] sm:max-h-[60vh] rounded-lg sm:rounded-xl overflow-hidden border border-border/30 ${
                 aspectRatioConfig.ratio === "16:9" ? "aspect-video" :
                 aspectRatioConfig.ratio === "9:16" ? "aspect-[9/16] max-w-[60%] sm:max-w-[40%] mx-auto" :
                 aspectRatioConfig.ratio === "1:1" ? "aspect-square max-w-[80%] sm:max-w-[60%] mx-auto" :
@@ -910,10 +963,12 @@ export default function Home() {
                   />
                 </div>
                 {audioElement && (
-                  <AudioLevelMeter
-                    audioElement={audioElement}
-                    isPlaying={isPlaying}
-                  />
+                  <div className="max-w-full">
+                    <AudioLevelMeter
+                      audioElement={audioElement}
+                      isPlaying={isPlaying}
+                    />
+                  </div>
                 )}
               </div>
             </div>

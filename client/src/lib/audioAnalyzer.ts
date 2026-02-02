@@ -11,7 +11,19 @@ export interface AudioData {
 const audioSourceCache = new WeakMap<HTMLAudioElement, {
   context: AudioContext;
   source: MediaElementAudioSourceNode;
+  outputGain: GainNode;
 }>();
+
+export function getCachedAudioNodes(audioElement: HTMLAudioElement) {
+  return audioSourceCache.get(audioElement) || null;
+}
+
+export function setCachedOutputGain(audioElement: HTMLAudioElement, value: number) {
+  const cached = audioSourceCache.get(audioElement);
+  if (cached) {
+    cached.outputGain.gain.value = value;
+  }
+}
 
 export class AudioAnalyzer {
   private audioContext: AudioContext | null = null;
@@ -37,9 +49,12 @@ export class AudioAnalyzer {
     } else {
       this.audioContext = new AudioContext();
       this.sourceNode = this.audioContext.createMediaElementSource(audioElement);
+      const outputGain = this.audioContext.createGain();
+      outputGain.gain.value = 1;
       audioSourceCache.set(audioElement, {
         context: this.audioContext,
         source: this.sourceNode,
+        outputGain,
       });
     }
 
@@ -48,7 +63,13 @@ export class AudioAnalyzer {
     this.analyser.smoothingTimeConstant = 0.8;
 
     this.sourceNode.connect(this.analyser);
-    this.analyser.connect(this.audioContext.destination);
+    const cachedNodes = audioSourceCache.get(audioElement);
+    if (cachedNodes) {
+      this.analyser.connect(cachedNodes.outputGain);
+      cachedNodes.outputGain.connect(this.audioContext.destination);
+    } else {
+      this.analyser.connect(this.audioContext.destination);
+    }
 
     this.audioElement = audioElement;
     this.isInitialized = true;

@@ -441,7 +441,7 @@ export function TemplateGallery({ onApplyTemplate }: TemplateGalleryProps) {
             Browse Templates
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-4xl max-h-[85vh]">
+        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
@@ -464,19 +464,22 @@ export function TemplateGallery({ onApplyTemplate }: TemplateGalleryProps) {
             </div>
 
             <Tabs value={selectedCategory} onValueChange={(v) => setSelectedCategory(v as typeof selectedCategory)}>
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
                 <TabsTrigger value="all" data-testid="tab-all">All</TabsTrigger>
                 <TabsTrigger value="social" data-testid="tab-social" className="flex items-center gap-1">
                   <Monitor className="w-3 h-3" />
-                  Social
+                  <span className="hidden sm:inline">Social</span>
+                  <span className="sm:hidden">Soc</span>
                 </TabsTrigger>
                 <TabsTrigger value="genre" data-testid="tab-genre" className="flex items-center gap-1">
                   <Music className="w-3 h-3" />
-                  Genre
+                  <span className="hidden sm:inline">Genre</span>
+                  <span className="sm:hidden">Gen</span>
                 </TabsTrigger>
                 <TabsTrigger value="style" data-testid="tab-style" className="flex items-center gap-1">
                   <Palette className="w-3 h-3" />
-                  Style
+                  <span className="hidden sm:inline">Style</span>
+                  <span className="sm:hidden">Sty</span>
                 </TabsTrigger>
               </TabsList>
 

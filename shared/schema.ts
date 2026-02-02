@@ -153,6 +153,8 @@ export interface MediaFile {
   url: string;
   duration?: number;
   thumbnail?: string;
+  sizeBytes?: number;
+  addedAt?: number;
 }
 
 export interface TimelineProject {
@@ -236,5 +238,6 @@ export interface TimelineState {
   zoom: number;
   isPlaying: boolean;
   selectedClipId: string | null;
+  selectedClipIds: string[];
   selectedTrackId: string | null;
 }
